@@ -11,8 +11,9 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 
-# Build directory
+# Build directories (any prefix)
 build/
+build_*/
 
 # CodeQL build artifacts
 _codeql_build_dir/

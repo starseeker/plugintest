@@ -223,6 +223,7 @@ extern "C" {
 
 int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
+    if (name[0] == '\0') return -1;  /* Reject empty string names */
     auto& reg = bu_plugin_impl::get_registry();
     if (reg.find(name) != reg.end()) {
         return -1; /* Duplicate */

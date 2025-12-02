@@ -344,6 +344,11 @@ static bool test_null_api_params() {
     result = bu_plugin_cmd_register("test_null_impl", nullptr);
     TEST_ASSERT(result != 0, "Null impl for register should fail");
     
+    /* Test empty string name for register */
+    auto dummy_fn = []() -> int { return 0; };
+    result = bu_plugin_cmd_register("", dummy_fn);
+    TEST_ASSERT(result != 0, "Empty string name for register should fail");
+    
     TEST_PASS();
 }
 

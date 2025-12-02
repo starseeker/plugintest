@@ -46,15 +46,16 @@ static bu_plugin_cmd s_commands[] = {
     { VERY_LONG_NAME, cmd_long_name },
     { "cmd__with__double__underscores", cmd_underscore },
     { "cmd_123_with_456_numbers_789", cmd_numbers },
-    { "CamelCaseAndmixedCase", cmd_mixed },
-    { "", cmd_mixed }  /* Empty string name - edge case */
+    { "CamelCaseAndmixedCase", cmd_mixed }
+    /* Note: Empty string name removed as it's an invalid edge case that would
+       cause undefined behavior in command registration/lookup */
 };
 
 /* Define the manifest */
 static bu_plugin_manifest s_manifest = {
     "ged-special-names-plugin", /* plugin_name */
     1,                          /* version */
-    5,                          /* cmd_count */
+    4,                          /* cmd_count */
     s_commands                  /* commands */
 };
 

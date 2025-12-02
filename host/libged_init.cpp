@@ -8,6 +8,7 @@
  */
 
 #include <cstdio>
+#include <climits>
 
 #ifndef BU_PLUGIN_IMPLEMENTATION
 #define BU_PLUGIN_IMPLEMENTATION
@@ -35,7 +36,12 @@ REGISTER_GED_COMMAND("version", builtin_version);
 
 /* Built-in status command for testing */
 static int builtin_status(void) {
-    printf("Status: OK, %zu commands registered\n", bu_plugin_cmd_count());
-    return static_cast<int>(bu_plugin_cmd_count());
+    size_t count = bu_plugin_cmd_count();
+    printf("Status: OK, %zu commands registered\n", count);
+    /* Return count, clamped to INT_MAX if too large */
+    if (count > static_cast<size_t>(INT_MAX)) {
+        return INT_MAX;
+    }
+    return static_cast<int>(count);
 }
 REGISTER_GED_COMMAND("status", builtin_status);
