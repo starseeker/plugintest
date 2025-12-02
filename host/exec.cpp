@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Report initial state */
-    printf("Initial registered count: %zu\n", bu_plugin_cmd_count());
+    printf("Initial registered count: %lu\n", (unsigned long)bu_plugin_cmd_count());
 
     /* If a plugin path is provided, load it */
     if (argc > 1) {
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     }
 
     /* Report final state */
-    printf("Final registered count: %zu\n", bu_plugin_cmd_count());
+    printf("Final registered count: %lu\n", (unsigned long)bu_plugin_cmd_count());
 
     /* Try to run the "example" command */
     if (bu_plugin_cmd_exists("example")) {

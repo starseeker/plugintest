@@ -61,7 +61,8 @@ extern "C" {
 
 /**
  * bu_plugin_cmd_impl - Function pointer type for a plugin command implementation.
- * The host defines the actual signature via a typedef.
+ * This is a default implementation; the host can define its own typedef
+ * before including this header by defining BU_PLUGIN_CMD_IMPL_DEFINED.
  * For this test, it's simply: int (*)(void)
  */
 #ifndef BU_PLUGIN_CMD_IMPL_DEFINED
@@ -140,8 +141,20 @@ BU_PLUGIN_API int bu_plugin_load(const char *path);
  * C++ helper macro for registering built-in commands at static initialization time.
  * Usage: REGISTER_BU_PLUGIN_COMMAND("cmdname", my_cmd_func);
  * This creates a static object whose constructor registers the command.
+ * Uses __COUNTER__ for unique variable names to avoid collisions.
  */
 #ifdef __cplusplus
+
+/* Helper macros for unique identifier generation */
+#define BU_PLUGIN_CONCAT_IMPL(a, b) a##b
+#define BU_PLUGIN_CONCAT(a, b) BU_PLUGIN_CONCAT_IMPL(a, b)
+
+#ifdef __COUNTER__
+#define BU_PLUGIN_UNIQUE_ID BU_PLUGIN_CONCAT(_bu_plugin_cmd_registrar_, __COUNTER__)
+#else
+#define BU_PLUGIN_UNIQUE_ID BU_PLUGIN_CONCAT(_bu_plugin_cmd_registrar_, __LINE__)
+#endif
+
 namespace bu_plugin_detail {
     struct CommandRegistrar {
         CommandRegistrar(const char *name, bu_plugin_cmd_impl impl) {
@@ -152,7 +165,7 @@ namespace bu_plugin_detail {
 
 #define REGISTER_BU_PLUGIN_COMMAND(name, impl) \
     static ::bu_plugin_detail::CommandRegistrar \
-    _bu_plugin_cmd_registrar_##__LINE__(name, impl)
+    BU_PLUGIN_UNIQUE_ID(name, impl)
 #endif
 
 /*
