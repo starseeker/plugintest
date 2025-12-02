@@ -4,8 +4,10 @@
  * This file:
  *   - Defines BU_PLUGIN_IMPLEMENTATION to include the registry implementation
  *   - Includes the plugin core header which provides all API implementations
- *   - Could register built-in commands here (none for this minimal test)
+ *   - Registers built-in commands for testing
  */
+
+#include <cstdio>
 
 #ifndef BU_PLUGIN_IMPLEMENTATION
 #define BU_PLUGIN_IMPLEMENTATION
@@ -14,14 +16,26 @@
 
 /*
  * The registry implementation is included via bu_plugin_core.h when
- * BU_PLUGIN_IMPLEMENTATION is defined. No additional code needed here
- * for the basic functionality.
- *
- * If we wanted built-in commands, we could register them like this:
- *
- * static int builtin_help(void) {
- *     printf("Built-in help command\n");
- *     return 0;
- * }
- * REGISTER_GED_COMMAND("help", builtin_help);
+ * BU_PLUGIN_IMPLEMENTATION is defined.
  */
+
+/* Built-in help command for testing */
+static int builtin_help(void) {
+    printf("Built-in help command\n");
+    return 0;
+}
+REGISTER_GED_COMMAND("help", builtin_help);
+
+/* Built-in version command for testing */
+static int builtin_version(void) {
+    printf("Plugin Test Framework v1.0\n");
+    return 1;
+}
+REGISTER_GED_COMMAND("version", builtin_version);
+
+/* Built-in status command for testing */
+static int builtin_status(void) {
+    printf("Status: OK, %zu commands registered\n", bu_plugin_cmd_count());
+    return static_cast<int>(bu_plugin_cmd_count());
+}
+REGISTER_GED_COMMAND("status", builtin_status);
