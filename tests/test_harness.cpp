@@ -23,6 +23,9 @@ static int tests_run = 0;
 static int tests_passed = 0;
 static int tests_failed = 0;
 
+/* Build configuration (for multi-config generators like Visual Studio) */
+static std::string g_build_config;
+
 /* Test assertion macros */
 #define TEST_START(name) \
     do { \
@@ -55,16 +58,34 @@ static int tests_failed = 0;
         return true; \
     } while(0)
 
-/* Construct plugin path based on OS */
-static std::string get_plugin_path(const char* base_dir, const char* plugin_name) {
+/* Construct plugin path based on OS and build configuration */
+static std::string get_plugin_path(const char* base_dir, const char* plugin_subdir, const char* plugin_name) {
     std::string path = base_dir;
     path += "/";
+    path += plugin_subdir;
+    path += "/";
+    
+#if defined(_WIN32) && defined(_MSC_VER)
+    /* For MSVC multi-config builds, add the configuration subdirectory */
+    if (!g_build_config.empty()) {
+        path += g_build_config;
+        path += "/";
+    }
+    /* MSVC doesn't use 'lib' prefix */
     path += plugin_name;
-#if defined(_WIN32)
+    path += ".dll";
+#elif defined(_WIN32)
+    /* For other Windows compilers (MinGW, etc.) */
+    path += "lib";
+    path += plugin_name;
     path += ".dll";
 #elif defined(__APPLE__)
+    path += "lib";
+    path += plugin_name;
     path += ".dylib";
 #else
+    path += "lib";
+    path += plugin_name;
     path += ".so";
 #endif
     return path;
@@ -93,7 +114,7 @@ static bool test_load_single_plugin(const char* plugin_dir) {
     TEST_START("Load Single Plugin");
     
     size_t count_before = bu_plugin_cmd_count();
-    std::string path = get_plugin_path(plugin_dir, "plugin/example/libged-example-plugin");
+    std::string path = get_plugin_path(plugin_dir, "plugin/example", "ged-example-plugin");
     
     printf("  Loading plugin: %s\n", path.c_str());
     int result = bu_plugin_load(path.c_str());
@@ -122,14 +143,14 @@ static bool test_load_multiple_plugins(const char* plugin_dir) {
     TEST_START("Load Multiple Plugins");
     
     /* Load math plugin */
-    std::string math_path = get_plugin_path(plugin_dir, "plugin/math_plugin/libged-math-plugin");
+    std::string math_path = get_plugin_path(plugin_dir, "plugin/math_plugin", "ged-math-plugin");
     printf("  Loading math plugin: %s\n", math_path.c_str());
     int math_result = bu_plugin_load(math_path.c_str());
     TEST_ASSERT(math_result >= 0, "Math plugin load should succeed");
     printf("  Registered %d command(s) from math plugin\n", math_result);
     
     /* Load string plugin */
-    std::string string_path = get_plugin_path(plugin_dir, "plugin/string_plugin/libged-string-plugin");
+    std::string string_path = get_plugin_path(plugin_dir, "plugin/string_plugin", "ged-string-plugin");
     printf("  Loading string plugin: %s\n", string_path.c_str());
     int string_result = bu_plugin_load(string_path.c_str());
     TEST_ASSERT(string_result >= 0, "String plugin load should succeed");
@@ -173,7 +194,7 @@ static bool test_duplicate_names(const char* plugin_dir) {
     printf("  Original 'example' command returns: %d\n", original_result);
     
     /* Load duplicate plugin which also has "example" command */
-    std::string dup_path = get_plugin_path(plugin_dir, "plugin/duplicate_plugin/libged-duplicate-plugin");
+    std::string dup_path = get_plugin_path(plugin_dir, "plugin/duplicate_plugin", "ged-duplicate-plugin");
     printf("  Loading duplicate plugin: %s\n", dup_path.c_str());
     int dup_result = bu_plugin_load(dup_path.c_str());
     
@@ -204,7 +225,7 @@ static bool test_empty_manifest(const char* plugin_dir) {
     
     size_t count_before = bu_plugin_cmd_count();
     
-    std::string empty_path = get_plugin_path(plugin_dir, "plugin/edge_cases/libged-empty-plugin");
+    std::string empty_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-empty-plugin");
     printf("  Loading empty plugin: %s\n", empty_path.c_str());
     int result = bu_plugin_load(empty_path.c_str());
     
@@ -221,7 +242,7 @@ static bool test_empty_manifest(const char* plugin_dir) {
 static bool test_null_implementations(const char* plugin_dir) {
     TEST_START("Null Implementations");
     
-    std::string null_path = get_plugin_path(plugin_dir, "plugin/edge_cases/libged-null-impl-plugin");
+    std::string null_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-null-impl-plugin");
     printf("  Loading null-impl plugin: %s\n", null_path.c_str());
     int result = bu_plugin_load(null_path.c_str());
     
@@ -248,7 +269,7 @@ static bool test_null_implementations(const char* plugin_dir) {
 static bool test_special_names(const char* plugin_dir) {
     TEST_START("Special Command Names");
     
-    std::string special_path = get_plugin_path(plugin_dir, "plugin/edge_cases/libged-special-names-plugin");
+    std::string special_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-special-names-plugin");
     printf("  Loading special-names plugin: %s\n", special_path.c_str());
     int result = bu_plugin_load(special_path.c_str());
     
@@ -277,7 +298,7 @@ static bool test_special_names(const char* plugin_dir) {
 static bool test_stress(const char* plugin_dir) {
     TEST_START("Stress Test (50 commands)");
     
-    std::string stress_path = get_plugin_path(plugin_dir, "plugin/stress_plugin/libged-stress-plugin");
+    std::string stress_path = get_plugin_path(plugin_dir, "plugin/stress_plugin", "ged-stress-plugin");
     printf("  Loading stress plugin: %s\n", stress_path.c_str());
     int result = bu_plugin_load(stress_path.c_str());
     
@@ -440,6 +461,12 @@ int main(int argc, char* argv[]) {
         plugin_dir = argv[1];
     }
     printf("Plugin directory: %s\n", plugin_dir);
+    
+    /* Get build configuration from command line (for multi-config generators) */
+    if (argc > 2) {
+        g_build_config = argv[2];
+        printf("Build configuration: %s\n", g_build_config.c_str());
+    }
     
     /* Initialize plugin system */
     if (bu_plugin_init() != 0) {
