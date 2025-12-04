@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+# Limit permissions of the GITHUB_TOKEN
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release, Debug]
+        include:
+          - os: ubuntu-latest
+            cmake_generator: "Unix Makefiles"
+          - os: macos-latest
+            cmake_generator: "Unix Makefiles"
+          - os: windows-latest
+            cmake_generator: "Visual Studio 17 2022"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure CMake (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        cmake -B build \
+          -G "${{ matrix.cmake_generator }}" \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DENABLE_STRICT_WARNINGS=ON
+
+    - name: Configure CMake (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        cmake -B build `
+          -G "${{ matrix.cmake_generator }}" `
+          -DENABLE_STRICT_WARNINGS=ON
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }}
+
+    - name: Run Tests (Unix)
+      if: runner.os != 'Windows'
+      run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure --verbose
+
+    - name: Run Tests (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $env:PATH = "${{ github.workspace }}\build\${{ matrix.build_type }};$env:PATH"
+        ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure --verbose
+
+  # Additional job for sanitizer testing (Linux only)
+  sanitizer-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure CMake with Sanitizers
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DENABLE_STRICT_WARNINGS=ON \
+          -DENABLE_SANITIZERS=ON
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Run Tests with Sanitizers
+      run: ctest --test-dir build --output-on-failure --verbose

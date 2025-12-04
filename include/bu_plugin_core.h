@@ -121,8 +121,38 @@ BU_PLUGIN_API bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name);
 BU_PLUGIN_API size_t bu_plugin_cmd_count(void);
 
 /**
+ * bu_plugin_cmd_foreach - Iterate over all registered commands in sorted order.
+ * @param callback  Function called for each command with (name, impl, user_data).
+ * @param user_data Opaque pointer passed to callback.
+ *
+ * Useful for listing all available commands (e.g., for help systems).
+ * Commands are iterated in alphabetical order by name for stable output.
+ * The callback should return 0 to continue, non-zero to stop iteration.
+ *
+ * @code
+ * // Callback to print each command name
+ * static int print_command(const char *name, bu_plugin_cmd_impl impl, void *user_data) {
+ *     (void)impl;       // unused
+ *     (void)user_data;  // unused
+ *     printf("  %s\n", name);
+ *     return 0;  // continue iteration
+ * }
+ *
+ * // Print sorted list of all available commands
+ * void list_commands(void) {
+ *     printf("Available commands:\n");
+ *     bu_plugin_cmd_foreach(print_command, NULL);
+ * }
+ * @endcode
+ */
+typedef int (*bu_plugin_cmd_callback)(const char *name, bu_plugin_cmd_impl impl, void *user_data);
+BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data);
+
+/**
  * bu_plugin_init - Initialize the plugin registry (call once at startup).
  * @return 0 on success.
+ *
+ * Note: All registry operations are thread-safe, protected by a mutex.
  */
 BU_PLUGIN_API int bu_plugin_init(void);
 
@@ -130,6 +160,11 @@ BU_PLUGIN_API int bu_plugin_init(void);
  * bu_plugin_load - Load a dynamic plugin from a shared library path.
  * @param path  Path to the shared library (.so, .dylib, .dll).
  * @return Number of commands registered from the plugin, or -1 on error.
+ *
+ * Note: Plugins are kept loaded for the lifetime of the process. There is
+ * currently no bu_plugin_unload() function. This is intentional for simplicity
+ * and safety - unloading code that may have function pointers still in use
+ * is error-prone.
  */
 BU_PLUGIN_API int bu_plugin_load(const char *path);
 
@@ -196,9 +231,12 @@ namespace bu_plugin_detail {
  */
 #if defined(BU_PLUGIN_IMPLEMENTATION) && defined(__cplusplus)
 
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <cstdio>
+#include <mutex>
+#include <vector>
+#include <algorithm>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -209,12 +247,18 @@ namespace bu_plugin_detail {
 namespace bu_plugin_impl {
 
 /**
- * Simple registry: maps command name -> function pointer.
+ * Thread-safe registry using unordered_map for O(1) lookups.
  * Uses a static local to ensure initialization before first use.
+ * Protected by a mutex for thread-safe access.
  */
-static std::map<std::string, bu_plugin_cmd_impl>& get_registry() {
-    static std::map<std::string, bu_plugin_cmd_impl> registry;
+static std::unordered_map<std::string, bu_plugin_cmd_impl>& get_registry() {
+    static std::unordered_map<std::string, bu_plugin_cmd_impl> registry;
     return registry;
+}
+
+static std::mutex& get_mutex() {
+    static std::mutex mtx;
+    return mtx;
 }
 
 } /* namespace bu_plugin_impl */
@@ -223,6 +267,8 @@ extern "C" {
 
 int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
+    if (name[0] == '\0') return -1;  /* Reject empty string names */
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     if (reg.find(name) != reg.end()) {
         return -1; /* Duplicate */
@@ -233,19 +279,46 @@ int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
 
 int bu_plugin_cmd_exists(const char *name) {
     if (!name) return 0;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     return reg.find(name) != reg.end() ? 1 : 0;
 }
 
 bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
     if (!name) return nullptr;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     auto it = reg.find(name);
     return (it != reg.end()) ? it->second : nullptr;
 }
 
 size_t bu_plugin_cmd_count(void) {
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     return bu_plugin_impl::get_registry().size();
+}
+
+void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
+    if (!callback) return;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
+    auto& reg = bu_plugin_impl::get_registry();
+    
+    /* Collect and sort command names for stable, predictable output order */
+    std::vector<std::string> names;
+    names.reserve(reg.size());
+    for (const auto& pair : reg) {
+        names.push_back(pair.first);
+    }
+    std::sort(names.begin(), names.end());
+    
+    /* Iterate in sorted order */
+    for (const auto& name : names) {
+        auto it = reg.find(name);
+        if (it != reg.end()) {
+            if (callback(it->first.c_str(), it->second, user_data) != 0) {
+                break;  /* Callback requested stop */
+            }
+        }
+    }
 }
 
 int bu_plugin_init(void) {
