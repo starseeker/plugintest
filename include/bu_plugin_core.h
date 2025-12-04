@@ -128,6 +128,22 @@ BU_PLUGIN_API size_t bu_plugin_cmd_count(void);
  * Useful for listing all available commands (e.g., for help systems).
  * Commands are iterated in alphabetical order by name for stable output.
  * The callback should return 0 to continue, non-zero to stop iteration.
+ *
+ * @code
+ * // Callback to print each command name
+ * static int print_command(const char *name, bu_plugin_cmd_impl impl, void *user_data) {
+ *     (void)impl;       // unused
+ *     (void)user_data;  // unused
+ *     printf("  %s\n", name);
+ *     return 0;  // continue iteration
+ * }
+ *
+ * // Print sorted list of all available commands
+ * void list_commands(void) {
+ *     printf("Available commands:\n");
+ *     bu_plugin_cmd_foreach(print_command, NULL);
+ * }
+ * @endcode
  */
 typedef int (*bu_plugin_cmd_callback)(const char *name, bu_plugin_cmd_impl impl, void *user_data);
 BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data);
