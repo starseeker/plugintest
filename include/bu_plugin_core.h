@@ -121,8 +121,22 @@ BU_PLUGIN_API bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name);
 BU_PLUGIN_API size_t bu_plugin_cmd_count(void);
 
 /**
+ * bu_plugin_cmd_foreach - Iterate over all registered commands.
+ * @param callback  Function called for each command with (name, impl, user_data).
+ * @param user_data Opaque pointer passed to callback.
+ *
+ * Useful for listing all available commands (e.g., for help systems).
+ * The callback should return 0 to continue, non-zero to stop iteration.
+ */
+typedef int (*bu_plugin_cmd_callback)(const char *name, bu_plugin_cmd_impl impl, void *user_data);
+BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data);
+
+/**
  * bu_plugin_init - Initialize the plugin registry (call once at startup).
  * @return 0 on success.
+ *
+ * Note: The current implementation is NOT thread-safe. If thread safety is
+ * required, add mutex protection around registry operations in the host.
  */
 BU_PLUGIN_API int bu_plugin_init(void);
 
@@ -130,6 +144,11 @@ BU_PLUGIN_API int bu_plugin_init(void);
  * bu_plugin_load - Load a dynamic plugin from a shared library path.
  * @param path  Path to the shared library (.so, .dylib, .dll).
  * @return Number of commands registered from the plugin, or -1 on error.
+ *
+ * Note: Plugins are kept loaded for the lifetime of the process. There is
+ * currently no bu_plugin_unload() function. This is intentional for simplicity
+ * and safety - unloading code that may have function pointers still in use
+ * is error-prone.
  */
 BU_PLUGIN_API int bu_plugin_load(const char *path);
 
@@ -247,6 +266,16 @@ bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
 
 size_t bu_plugin_cmd_count(void) {
     return bu_plugin_impl::get_registry().size();
+}
+
+void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
+    if (!callback) return;
+    auto& reg = bu_plugin_impl::get_registry();
+    for (const auto& pair : reg) {
+        if (callback(pair.first.c_str(), pair.second, user_data) != 0) {
+            break;  /* Callback requested stop */
+        }
+    }
 }
 
 int bu_plugin_init(void) {

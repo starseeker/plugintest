@@ -6,9 +6,12 @@
  *   - Tests duplicate command name handling
  *   - Tests edge cases (null pointers, empty manifests, etc.)
  *   - Tests stress scenarios (many commands)
+ *   - Tests scalability to hundreds of commands
  *   - Tests built-in commands alongside plugin commands
  *   - Tests command lookup and execution
+ *   - Tests "first wins" precedence for duplicate names
  *   - Reports pass/fail status for each test
+ *   - Provides performance benchmarks for lookup operations
  */
 
 #include <cstdio>
@@ -16,6 +19,7 @@
 #include <cstring>
 #include <vector>
 #include <string>
+#include <chrono>
 #include "ged_plugin.h"
 
 /* Test statistics */
@@ -326,6 +330,62 @@ static bool test_stress(const char* plugin_dir) {
     TEST_PASS();
 }
 
+/* Test: Scalability test with 500 commands */
+static bool test_scalability(const char* plugin_dir) {
+    TEST_START("Scalability Test (500 commands)");
+    
+    size_t count_before = bu_plugin_cmd_count();
+    
+    std::string large_path = get_plugin_path(plugin_dir, "plugin/large_plugin", "ged-large-plugin");
+    printf("  Loading large plugin: %s\n", large_path.c_str());
+    
+    /* Time the plugin load */
+    auto load_start = std::chrono::high_resolution_clock::now();
+    int result = bu_plugin_load(large_path.c_str());
+    auto load_end = std::chrono::high_resolution_clock::now();
+    auto load_duration = std::chrono::duration_cast<std::chrono::microseconds>(load_end - load_start);
+    
+    TEST_ASSERT_EQUAL(500, result, "Large plugin should register 500 commands");
+    printf("  Plugin load time: %lld microseconds\n", static_cast<long long>(load_duration.count()));
+    
+    size_t count_after = bu_plugin_cmd_count();
+    printf("  Total commands after loading: %zu\n", count_after);
+    TEST_ASSERT(count_after >= count_before + 500, "Command count should increase by at least 500");
+    
+    /* Benchmark lookup performance with many commands */
+    const int lookup_iterations = 1000;
+    auto lookup_start = std::chrono::high_resolution_clock::now();
+    for (int iter = 0; iter < lookup_iterations; iter++) {
+        for (int i = 0; i < 500; i += 50) {  /* Sample every 50th command */
+            char cmd_name[32];
+            snprintf(cmd_name, sizeof(cmd_name), "large_%d", i);
+            bu_plugin_cmd_get(cmd_name);
+        }
+    }
+    auto lookup_end = std::chrono::high_resolution_clock::now();
+    auto lookup_duration = std::chrono::duration_cast<std::chrono::microseconds>(lookup_end - lookup_start);
+    printf("  Lookup benchmark: %d lookups in %lld microseconds\n", 
+           lookup_iterations * 10, static_cast<long long>(lookup_duration.count()));
+    
+    /* Verify a sampling of commands */
+    for (int i = 0; i < 500; i += 100) {
+        char cmd_name[32];
+        snprintf(cmd_name, sizeof(cmd_name), "large_%d", i);
+        
+        TEST_ASSERT(bu_plugin_cmd_exists(cmd_name) == 1, "Large command should exist");
+        
+        bu_plugin_cmd_impl fn = bu_plugin_cmd_get(cmd_name);
+        TEST_ASSERT(fn != nullptr, "Should be able to get large command");
+        
+        int cmd_result = fn();
+        TEST_ASSERT_EQUAL(i, cmd_result, "Large command should return its index");
+    }
+    
+    printf("  Sampled 5 large commands verified (0, 100, 200, 300, 400)\n");
+    
+    TEST_PASS();
+}
+
 /* Test: Invalid plugin paths */
 static bool test_invalid_paths() {
     TEST_START("Invalid Plugin Paths");
@@ -399,6 +459,57 @@ static bool test_builtin_commands() {
     TEST_ASSERT(status_fn != nullptr, "Should be able to get 'status' command");
     int status_result = status_fn();
     TEST_ASSERT(status_result >= 3, "Status command should return at least 3 (built-in count)");
+    
+    TEST_PASS();
+}
+
+/* Callback for counting commands via foreach */
+static int count_callback(const char* /*name*/, bu_plugin_cmd_impl /*impl*/, void* user_data) {
+    int* count = static_cast<int*>(user_data);
+    (*count)++;
+    return 0;  /* Continue iteration */
+}
+
+/* Callback for finding a specific command */
+struct FindData {
+    const char* target;
+    bool found;
+};
+
+static int find_callback(const char* name, bu_plugin_cmd_impl /*impl*/, void* user_data) {
+    FindData* data = static_cast<FindData*>(user_data);
+    if (strcmp(name, data->target) == 0) {
+        data->found = true;
+        return 1;  /* Stop iteration */
+    }
+    return 0;  /* Continue */
+}
+
+/* Test: Command enumeration */
+static bool test_command_enumeration() {
+    TEST_START("Command Enumeration");
+    
+    /* Count commands via foreach */
+    int count = 0;
+    bu_plugin_cmd_foreach(count_callback, &count);
+    
+    /* Should match bu_plugin_cmd_count */
+    size_t expected = bu_plugin_cmd_count();
+    TEST_ASSERT_EQUAL(static_cast<int>(expected), count, 
+        "foreach count should match bu_plugin_cmd_count");
+    printf("  Enumerated %d commands via foreach\n", count);
+    
+    /* Test finding specific commands */
+    FindData help_data = { "help", false };
+    bu_plugin_cmd_foreach(find_callback, &help_data);
+    TEST_ASSERT(help_data.found, "Should find 'help' command via enumeration");
+    
+    FindData nonexistent_data = { "this_command_does_not_exist_xyz", false };
+    bu_plugin_cmd_foreach(find_callback, &nonexistent_data);
+    TEST_ASSERT(!nonexistent_data.found, "Should not find nonexistent command");
+    
+    /* Test null callback handling */
+    bu_plugin_cmd_foreach(nullptr, nullptr);  /* Should not crash */
     
     TEST_PASS();
 }
@@ -477,6 +588,7 @@ int main(int argc, char* argv[]) {
     /* Run all tests */
     test_initial_state();
     test_builtin_commands();
+    test_command_enumeration();
     test_null_api_params();
     test_duplicate_register();
     test_multiple_duplicates();
@@ -488,6 +600,7 @@ int main(int argc, char* argv[]) {
     test_null_implementations(plugin_dir);
     test_special_names(plugin_dir);
     test_stress(plugin_dir);
+    test_scalability(plugin_dir);
     
     /* Print summary */
     printf("\n========================================\n");

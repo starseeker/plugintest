@@ -100,6 +100,7 @@ add_subdirectory(plugin/math_plugin)
 add_subdirectory(plugin/string_plugin)
 add_subdirectory(plugin/duplicate_plugin)
 add_subdirectory(plugin/stress_plugin)
+add_subdirectory(plugin/large_plugin)
 add_subdirectory(plugin/edge_cases)
 
 # Tests
