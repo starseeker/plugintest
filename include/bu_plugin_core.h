@@ -121,11 +121,12 @@ BU_PLUGIN_API bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name);
 BU_PLUGIN_API size_t bu_plugin_cmd_count(void);
 
 /**
- * bu_plugin_cmd_foreach - Iterate over all registered commands.
+ * bu_plugin_cmd_foreach - Iterate over all registered commands in sorted order.
  * @param callback  Function called for each command with (name, impl, user_data).
  * @param user_data Opaque pointer passed to callback.
  *
  * Useful for listing all available commands (e.g., for help systems).
+ * Commands are iterated in alphabetical order by name for stable output.
  * The callback should return 0 to continue, non-zero to stop iteration.
  */
 typedef int (*bu_plugin_cmd_callback)(const char *name, bu_plugin_cmd_impl impl, void *user_data);
@@ -218,6 +219,8 @@ namespace bu_plugin_detail {
 #include <string>
 #include <cstdio>
 #include <mutex>
+#include <vector>
+#include <algorithm>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -282,9 +285,22 @@ void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     if (!callback) return;
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
+    
+    /* Collect and sort command names for stable, predictable output order */
+    std::vector<std::string> names;
+    names.reserve(reg.size());
     for (const auto& pair : reg) {
-        if (callback(pair.first.c_str(), pair.second, user_data) != 0) {
-            break;  /* Callback requested stop */
+        names.push_back(pair.first);
+    }
+    std::sort(names.begin(), names.end());
+    
+    /* Iterate in sorted order */
+    for (const auto& name : names) {
+        auto it = reg.find(name);
+        if (it != reg.end()) {
+            if (callback(it->first.c_str(), it->second, user_data) != 0) {
+                break;  /* Callback requested stop */
+            }
         }
     }
 }
