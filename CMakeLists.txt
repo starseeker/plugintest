@@ -78,21 +78,21 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 enable_testing()
 
 # Host library (shared) with built-in implementation
-add_library(ged_host SHARED
-    host/libged_init.cpp
+add_library(bu_plugin_host SHARED
+    host/libbu_init.cpp
 )
-target_compile_definitions(ged_host PRIVATE BU_PLUGIN_IMPLEMENTATION)
+target_compile_definitions(bu_plugin_host PRIVATE BU_PLUGIN_IMPLEMENTATION)
 if(WIN32)
-    target_link_libraries(ged_host PRIVATE)
+    target_link_libraries(bu_plugin_host PRIVATE)
 else()
-    target_link_libraries(ged_host PRIVATE dl)
+    target_link_libraries(bu_plugin_host PRIVATE dl)
 endif()
 
 # Executable that loads plugins and runs commands
-add_executable(run_host
+add_executable(run_bu_plugin
     host/exec.cpp
 )
-target_link_libraries(run_host PRIVATE ged_host)
+target_link_libraries(run_bu_plugin PRIVATE bu_plugin_host)
 
 # Plugin subdirectories
 add_subdirectory(plugin/example)

@@ -11,7 +11,7 @@
 #ifndef BU_PLUGIN_BUILDING_DLL
 #define BU_PLUGIN_BUILDING_DLL
 #endif
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /* Macro to generate command functions */
 #define DEFINE_LARGE_CMD(n) \
@@ -134,7 +134,7 @@ static bu_plugin_cmd s_commands[] = {
 
 /* Define the manifest */
 static bu_plugin_manifest s_manifest = {
-    "ged-large-plugin",     /* plugin_name */
+    "bu-large-plugin",      /* plugin_name */
     1,                      /* version */
     500,                    /* cmd_count - 500 commands */
     s_commands              /* commands */

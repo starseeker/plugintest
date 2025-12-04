@@ -9,11 +9,11 @@
 #ifndef BU_PLUGIN_BUILDING_DLL
 #define BU_PLUGIN_BUILDING_DLL
 #endif
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /* Define the manifest with no commands */
 static bu_plugin_manifest s_manifest = {
-    "ged-empty-plugin",     /* plugin_name */
+    "bu-empty-plugin",      /* plugin_name */
     1,                      /* version */
     0,                      /* cmd_count - no commands */
     nullptr                 /* commands - null array */

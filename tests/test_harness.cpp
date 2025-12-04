@@ -20,7 +20,7 @@
 #include <vector>
 #include <string>
 #include <chrono>
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /* Test statistics */
 static int tests_run = 0;
@@ -118,7 +118,7 @@ static bool test_load_single_plugin(const char* plugin_dir) {
     TEST_START("Load Single Plugin");
     
     size_t count_before = bu_plugin_cmd_count();
-    std::string path = get_plugin_path(plugin_dir, "plugin/example", "ged-example-plugin");
+    std::string path = get_plugin_path(plugin_dir, "plugin/example", "bu-example-plugin");
     
     printf("  Loading plugin: %s\n", path.c_str());
     int result = bu_plugin_load(path.c_str());
@@ -147,14 +147,14 @@ static bool test_load_multiple_plugins(const char* plugin_dir) {
     TEST_START("Load Multiple Plugins");
     
     /* Load math plugin */
-    std::string math_path = get_plugin_path(plugin_dir, "plugin/math_plugin", "ged-math-plugin");
+    std::string math_path = get_plugin_path(plugin_dir, "plugin/math_plugin", "bu-math-plugin");
     printf("  Loading math plugin: %s\n", math_path.c_str());
     int math_result = bu_plugin_load(math_path.c_str());
     TEST_ASSERT(math_result >= 0, "Math plugin load should succeed");
     printf("  Registered %d command(s) from math plugin\n", math_result);
     
     /* Load string plugin */
-    std::string string_path = get_plugin_path(plugin_dir, "plugin/string_plugin", "ged-string-plugin");
+    std::string string_path = get_plugin_path(plugin_dir, "plugin/string_plugin", "bu-string-plugin");
     printf("  Loading string plugin: %s\n", string_path.c_str());
     int string_result = bu_plugin_load(string_path.c_str());
     TEST_ASSERT(string_result >= 0, "String plugin load should succeed");
@@ -198,7 +198,7 @@ static bool test_duplicate_names(const char* plugin_dir) {
     printf("  Original 'example' command returns: %d\n", original_result);
     
     /* Load duplicate plugin which also has "example" command */
-    std::string dup_path = get_plugin_path(plugin_dir, "plugin/duplicate_plugin", "ged-duplicate-plugin");
+    std::string dup_path = get_plugin_path(plugin_dir, "plugin/duplicate_plugin", "bu-duplicate-plugin");
     printf("  Loading duplicate plugin: %s\n", dup_path.c_str());
     int dup_result = bu_plugin_load(dup_path.c_str());
     
@@ -229,7 +229,7 @@ static bool test_empty_manifest(const char* plugin_dir) {
     
     size_t count_before = bu_plugin_cmd_count();
     
-    std::string empty_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-empty-plugin");
+    std::string empty_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "bu-empty-plugin");
     printf("  Loading empty plugin: %s\n", empty_path.c_str());
     int result = bu_plugin_load(empty_path.c_str());
     
@@ -246,7 +246,7 @@ static bool test_empty_manifest(const char* plugin_dir) {
 static bool test_null_implementations(const char* plugin_dir) {
     TEST_START("Null Implementations");
     
-    std::string null_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-null-impl-plugin");
+    std::string null_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "bu-null-impl-plugin");
     printf("  Loading null-impl plugin: %s\n", null_path.c_str());
     int result = bu_plugin_load(null_path.c_str());
     
@@ -273,7 +273,7 @@ static bool test_null_implementations(const char* plugin_dir) {
 static bool test_special_names(const char* plugin_dir) {
     TEST_START("Special Command Names");
     
-    std::string special_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "ged-special-names-plugin");
+    std::string special_path = get_plugin_path(plugin_dir, "plugin/edge_cases", "bu-special-names-plugin");
     printf("  Loading special-names plugin: %s\n", special_path.c_str());
     int result = bu_plugin_load(special_path.c_str());
     
@@ -302,7 +302,7 @@ static bool test_special_names(const char* plugin_dir) {
 static bool test_stress(const char* plugin_dir) {
     TEST_START("Stress Test (50 commands)");
     
-    std::string stress_path = get_plugin_path(plugin_dir, "plugin/stress_plugin", "ged-stress-plugin");
+    std::string stress_path = get_plugin_path(plugin_dir, "plugin/stress_plugin", "bu-stress-plugin");
     printf("  Loading stress plugin: %s\n", stress_path.c_str());
     int result = bu_plugin_load(stress_path.c_str());
     
@@ -336,7 +336,7 @@ static bool test_scalability(const char* plugin_dir) {
     
     size_t count_before = bu_plugin_cmd_count();
     
-    std::string large_path = get_plugin_path(plugin_dir, "plugin/large_plugin", "ged-large-plugin");
+    std::string large_path = get_plugin_path(plugin_dir, "plugin/large_plugin", "bu-large-plugin");
     printf("  Loading large plugin: %s\n", large_path.c_str());
     
     /* Time the plugin load */
