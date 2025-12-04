@@ -211,16 +211,16 @@ namespace bu_plugin_detail {
  *   static bu_plugin_manifest s_manifest = { "myplugin", 1, 1, s_commands };
  *   BU_PLUGIN_DECLARE_MANIFEST(s_manifest)
  *
- * The host will dlsym() for "ged_plugin_info" (or the host-specific symbol name).
+ * The host will dlsym() for "bu_plugin_info" (or the host-specific symbol name).
  */
 #ifdef __cplusplus
 #define BU_PLUGIN_DECLARE_MANIFEST(manifest_var) \
-    extern "C" BU_PLUGIN_EXPORT const bu_plugin_manifest* ged_plugin_info(void) { \
+    extern "C" BU_PLUGIN_EXPORT const bu_plugin_manifest* bu_plugin_info(void) { \
         return &(manifest_var); \
     }
 #else
 #define BU_PLUGIN_DECLARE_MANIFEST(manifest_var) \
-    BU_PLUGIN_EXPORT const bu_plugin_manifest* ged_plugin_info(void) { \
+    BU_PLUGIN_EXPORT const bu_plugin_manifest* bu_plugin_info(void) { \
         return &(manifest_var); \
     }
 #endif
@@ -339,9 +339,9 @@ int bu_plugin_load(const char *path) {
         return -1;
     }
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = (info_fn)GetProcAddress(handle, "ged_plugin_info");
+    info_fn get_info = (info_fn)GetProcAddress(handle, "bu_plugin_info");
     if (!get_info) {
-        fprintf(stderr, "Plugin %s does not export ged_plugin_info\n", path);
+        fprintf(stderr, "Plugin %s does not export bu_plugin_info\n", path);
         FreeLibrary(handle);
         return -1;
     }
@@ -352,9 +352,9 @@ int bu_plugin_load(const char *path) {
         return -1;
     }
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = (info_fn)dlsym(handle, "ged_plugin_info");
+    info_fn get_info = (info_fn)dlsym(handle, "bu_plugin_info");
     if (!get_info) {
-        fprintf(stderr, "Plugin %s does not export ged_plugin_info\n", path);
+        fprintf(stderr, "Plugin %s does not export bu_plugin_info\n", path);
         dlclose(handle);
         return -1;
     }

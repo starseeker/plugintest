@@ -4,7 +4,7 @@
 add_executable(test_harness
     test_harness.cpp
 )
-target_link_libraries(test_harness PRIVATE ged_host)
+target_link_libraries(test_harness PRIVATE bu_plugin_host)
 target_include_directories(test_harness PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Add test target using CTest

@@ -12,7 +12,7 @@
 #ifndef BU_PLUGIN_BUILDING_DLL
 #define BU_PLUGIN_BUILDING_DLL
 #endif
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /* Math command implementations */
 static int math_add(void) {
@@ -39,7 +39,7 @@ static bu_plugin_cmd s_commands[] = {
 
 /* Define the manifest */
 static bu_plugin_manifest s_manifest = {
-    "ged-math-plugin",      /* plugin_name */
+    "bu-math-plugin",       /* plugin_name */
     1,                      /* version */
     3,                      /* cmd_count - 3 commands */
     s_commands              /* commands */

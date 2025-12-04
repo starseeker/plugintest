@@ -10,7 +10,7 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 int main(int argc, char *argv[]) {
     /* Initialize the plugin system */

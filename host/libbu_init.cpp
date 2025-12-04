@@ -1,5 +1,5 @@
 /**
- * libged_init.cpp - Host library implementation.
+ * libbu_init.cpp - Host library implementation.
  *
  * This file:
  *   - Defines BU_PLUGIN_IMPLEMENTATION to include the registry implementation
@@ -13,7 +13,7 @@
 #ifndef BU_PLUGIN_IMPLEMENTATION
 #define BU_PLUGIN_IMPLEMENTATION
 #endif
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /*
  * The registry implementation is included via bu_plugin_core.h when
@@ -25,14 +25,14 @@ static int builtin_help(void) {
     printf("Built-in help command\n");
     return 0;
 }
-REGISTER_GED_COMMAND("help", builtin_help);
+REGISTER_BU_PLUGIN_COMMAND("help", builtin_help);
 
 /* Built-in version command for testing */
 static int builtin_version(void) {
     printf("Plugin Test Framework v1.0\n");
     return 1;
 }
-REGISTER_GED_COMMAND("version", builtin_version);
+REGISTER_BU_PLUGIN_COMMAND("version", builtin_version);
 
 /* Built-in status command for testing */
 static int builtin_status(void) {
@@ -44,4 +44,4 @@ static int builtin_status(void) {
     }
     return static_cast<int>(count);
 }
-REGISTER_GED_COMMAND("status", builtin_status);
+REGISTER_BU_PLUGIN_COMMAND("status", builtin_status);

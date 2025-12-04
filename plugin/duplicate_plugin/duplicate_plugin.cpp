@@ -10,7 +10,7 @@
 #ifndef BU_PLUGIN_BUILDING_DLL
 #define BU_PLUGIN_BUILDING_DLL
 #endif
-#include "ged_plugin.h"
+#include "bu_plugin.h"
 
 /* This deliberately uses the same name as example_plugin */
 static int example_command(void) {
@@ -32,7 +32,7 @@ static bu_plugin_cmd s_commands[] = {
 
 /* Define the manifest */
 static bu_plugin_manifest s_manifest = {
-    "ged-duplicate-plugin", /* plugin_name */
+    "bu-duplicate-plugin",  /* plugin_name */
     1,                      /* version */
     2,                      /* cmd_count */
     s_commands              /* commands */

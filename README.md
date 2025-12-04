@@ -5,9 +5,9 @@ Test cross platform plugin mechanisms
 
 This repository provides a comprehensive testing framework for the BU plugin core pattern:
 
-- A host library (`ged_host`) configured with the BU plugin core (using `BU_PLUGIN_*` macros in `include/ged_plugin.h`) and built-in commands (defined in `host/libged_init.cpp`).
-- Multiple dynamic plugins exporting manifest-arrays via `ged_plugin_info` that list commands to register at load.
-- A small executable (`run_host`) that loads a plugin, registers commands via the manifest, and runs one.
+- A host library (`bu_plugin_host`) configured with the BU plugin core (using `BU_PLUGIN_*` macros in `include/bu_plugin.h`) and built-in commands (defined in `host/libbu_init.cpp`).
+- Multiple dynamic plugins exporting manifest-arrays via `bu_plugin_info` that list commands to register at load.
+- A small executable (`run_bu_plugin`) that loads a plugin, registers commands via the manifest, and runs one.
 - A comprehensive test harness (`test_harness`) that stress-tests the plugin system.
 
 ## Structure
@@ -22,8 +22,8 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - Always-on `REGISTER_BU_PLUGIN_COMMAND` macro (C++ path)
   - Built-in registry implementation (C++ only) guarded by `BU_PLUGIN_IMPLEMENTATION`
   - Dynamic plugin manifest helpers (`bu_plugin_manifest`, `BU_PLUGIN_DECLARE_MANIFEST`, validation and registration helpers)
-- `include/ged_plugin.h`: wrapper configuring `BU_PLUGIN_*` for the test "ged" host, with minimal function signature `int (*)(void)`
-- `host/libged_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
+- `include/bu_plugin.h`: wrapper including `bu_plugin_core.h` for the test host, with minimal function signature `int (*)(void)`
+- `host/libbu_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
 - `host/exec.cpp`: test runner executable that optionally loads a plugin from the command line, reports registry size, and runs the "example" command.
 
 ### Plugins
@@ -85,17 +85,17 @@ cmake --build .
 
 On Linux:
 ```bash
-./run_host ./plugin/example/libged-example-plugin.so
+./run_bu_plugin ./plugin/example/libbu-example-plugin.so
 ```
 
 On macOS:
 ```bash
-./run_host ./plugin/example/libged-example-plugin.dylib
+./run_bu_plugin ./plugin/example/libbu-example-plugin.dylib
 ```
 
 On Windows:
 ```cmd
-run_host.exe plugin\example\ged-example-plugin.dll
+run_bu_plugin.exe plugin\example\bu-example-plugin.dll
 ```
 
 ### Run the comprehensive test harness
@@ -110,11 +110,11 @@ run_host.exe plugin\example\ged-example-plugin.dll
 ./tests/test_builds.sh
 ```
 
-## Expected output from run_host
+## Expected output from run_bu_plugin
 
 ```
 Initial registered count: 3
-Registered 1 command(s) from ./plugin/example/libged-example-plugin.so
+Registered 1 command(s) from ./plugin/example/libbu-example-plugin.so
 Final registered count: 4
 Running 'example' command...
 Hello from the example plugin!
