@@ -135,8 +135,7 @@ BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *
  * bu_plugin_init - Initialize the plugin registry (call once at startup).
  * @return 0 on success.
  *
- * Note: The current implementation is NOT thread-safe. If thread safety is
- * required, add mutex protection around registry operations in the host.
+ * Note: All registry operations are thread-safe, protected by a mutex.
  */
 BU_PLUGIN_API int bu_plugin_init(void);
 
@@ -215,9 +214,10 @@ namespace bu_plugin_detail {
  */
 #if defined(BU_PLUGIN_IMPLEMENTATION) && defined(__cplusplus)
 
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <cstdio>
+#include <mutex>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -228,12 +228,18 @@ namespace bu_plugin_detail {
 namespace bu_plugin_impl {
 
 /**
- * Simple registry: maps command name -> function pointer.
+ * Thread-safe registry using unordered_map for O(1) lookups.
  * Uses a static local to ensure initialization before first use.
+ * Protected by a mutex for thread-safe access.
  */
-static std::map<std::string, bu_plugin_cmd_impl>& get_registry() {
-    static std::map<std::string, bu_plugin_cmd_impl> registry;
+static std::unordered_map<std::string, bu_plugin_cmd_impl>& get_registry() {
+    static std::unordered_map<std::string, bu_plugin_cmd_impl> registry;
     return registry;
+}
+
+static std::mutex& get_mutex() {
+    static std::mutex mtx;
+    return mtx;
 }
 
 } /* namespace bu_plugin_impl */
@@ -243,6 +249,7 @@ extern "C" {
 int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
     if (name[0] == '\0') return -1;  /* Reject empty string names */
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     if (reg.find(name) != reg.end()) {
         return -1; /* Duplicate */
@@ -253,23 +260,27 @@ int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
 
 int bu_plugin_cmd_exists(const char *name) {
     if (!name) return 0;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     return reg.find(name) != reg.end() ? 1 : 0;
 }
 
 bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
     if (!name) return nullptr;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     auto it = reg.find(name);
     return (it != reg.end()) ? it->second : nullptr;
 }
 
 size_t bu_plugin_cmd_count(void) {
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     return bu_plugin_impl::get_registry().size();
 }
 
 void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     if (!callback) return;
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     for (const auto& pair : reg) {
         if (callback(pair.first.c_str(), pair.second, user_data) != 0) {
