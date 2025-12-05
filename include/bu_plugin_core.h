@@ -517,7 +517,7 @@ BU_PLUGIN_API int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl im
     return 0;
 }
 
-int bu_plugin_cmd_exists(const char *name) {
+BU_PLUGIN_API int bu_plugin_cmd_exists(const char *name) {
     if (!name) return 0;
     std::string trimmed = bu_plugin_impl::trim_whitespace(name);
     if (trimmed.empty()) return 0;
@@ -526,7 +526,7 @@ int bu_plugin_cmd_exists(const char *name) {
     return reg.find(trimmed) != reg.end() ? 1 : 0;
 }
 
-bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
+BU_PLUGIN_API bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
     if (!name) return nullptr;
     std::string trimmed = bu_plugin_impl::trim_whitespace(name);
     if (trimmed.empty()) return nullptr;
@@ -536,12 +536,12 @@ bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
     return (it != reg.end()) ? it->second : nullptr;
 }
 
-size_t bu_plugin_cmd_count(void) {
+BU_PLUGIN_API size_t bu_plugin_cmd_count(void) {
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     return bu_plugin_impl::get_registry().size();
 }
 
-void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
+BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     if (!callback) return;
     
     /* Snapshot the registry under lock, then release lock for iteration */
@@ -570,12 +570,12 @@ void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     }
 }
 
-int bu_plugin_init(void) {
+BU_PLUGIN_API int bu_plugin_init(void) {
     /* No-op for now; registry is initialized on first access */
     return 0;
 }
 
-int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
+BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
     bu_plugin_cmd_impl fn = bu_plugin_cmd_get(name);
     if (!fn) {
         bu_plugin_logf(BU_LOG_ERR, "Command '%s' not found", name ? name : "(null)");
@@ -604,7 +604,7 @@ int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
 /**
  * bu_plugin_load - Load a dynamic plugin and register its commands.
  */
-int bu_plugin_load(const char *path) {
+BU_PLUGIN_API int bu_plugin_load(const char *path) {
     if (!path || path[0] == '\0') {
         bu_plugin_logf(BU_LOG_ERR, "Invalid plugin path (null or empty)");
         return -1;

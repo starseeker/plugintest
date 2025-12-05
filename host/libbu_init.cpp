@@ -73,7 +73,7 @@ static int example_path_allow(const char *path) {
  * to retrieve any startup messages, or call bu_plugin_set_logger() to set up
  * a logger for subsequent messages.
  */
-extern "C" BU_PLUGIN_API int bu_host_init(const char *libexec_dir) {
+extern "C" BU_PLUGIN_EXPORT int bu_host_init(const char *libexec_dir) {
     /* Do NOT set a logger during init - messages are buffered internally
        to avoid writing to STDOUT/STDERR during early startup */
     
