@@ -82,7 +82,11 @@ typedef int (*bu_plugin_path_allow_cb)(const char *path);
 
 /**
  * bu_plugin_set_logger - Set the logger callback.
- * @param cb  The callback function for logging. Pass NULL to restore default stderr logger.
+ * @param cb  The callback function for logging. Pass NULL to buffer messages internally.
+ *
+ * When no logger is set (cb is NULL), log messages are buffered internally to avoid
+ * writing to STDOUT/STDERR during early program startup. Use bu_plugin_flush_logs()
+ * to retrieve buffered messages after the application has finished initializing.
  */
 BU_PLUGIN_API void bu_plugin_set_logger(bu_plugin_logger_cb cb);
 
@@ -91,8 +95,26 @@ BU_PLUGIN_API void bu_plugin_set_logger(bu_plugin_logger_cb cb);
  * @param level  Log level (BU_LOG_INFO, BU_LOG_WARN, BU_LOG_ERR).
  * @param fmt    printf-style format string.
  * @param ...    Format arguments.
+ *
+ * If a logger callback is set, the message is passed to it immediately.
+ * Otherwise, the message is buffered internally for later retrieval via
+ * bu_plugin_flush_logs().
  */
 BU_PLUGIN_API void bu_plugin_logf(int level, const char *fmt, ...);
+
+/**
+ * bu_plugin_flush_logs - Flush buffered startup logs to a callback.
+ * @param cb  Callback function to receive each buffered log message.
+ *            Called once for each buffered message with (level, msg).
+ *
+ * During early startup, when no logger callback is set, log messages are
+ * buffered internally to avoid writing to STDOUT/STDERR. Call this function
+ * after initialization is complete to process any startup messages.
+ *
+ * After flushing, the internal buffer is cleared.
+ * If cb is NULL, the buffer is simply cleared without processing messages.
+ */
+BU_PLUGIN_API void bu_plugin_flush_logs(bu_plugin_logger_cb cb);
 
 /**
  * bu_plugin_set_path_allow - Set the path allow policy callback.
@@ -381,15 +403,21 @@ static bu_plugin_path_allow_cb& get_path_allow() {
     return cb;
 }
 
-/* Default stderr logger */
-static void default_logger(int level, const char *msg) {
-    const char *prefix = "";
-    switch (level) {
-        case BU_LOG_INFO: prefix = "[INFO] "; break;
-        case BU_LOG_WARN: prefix = "[WARN] "; break;
-        case BU_LOG_ERR:  prefix = "[ERROR] "; break;
-    }
-    fprintf(stderr, "%s%s\n", prefix, msg);
+/* Internal implementation detail - buffered startup log storage.
+   Avoids writing to STDOUT/STDERR during early startup. */
+struct BufferedLogEntry {
+    int level;
+    std::string msg;
+};
+
+static std::vector<BufferedLogEntry>& get_log_buffer() {
+    static std::vector<BufferedLogEntry> buffer;
+    return buffer;
+}
+
+static std::mutex& get_log_buffer_mutex() {
+    static std::mutex mtx;
+    return mtx;
 }
 
 /* Trim leading/trailing whitespace from a string, returns trimmed copy */
@@ -437,10 +465,30 @@ void bu_plugin_logf(int level, const char *fmt, ...) {
     
     bu_plugin_logger_cb logger = bu_plugin_impl::get_logger();
     if (logger) {
+        /* Logger callback is set - dispatch immediately */
         logger(level, buf);
     } else {
-        bu_plugin_impl::default_logger(level, buf);
+        /* No logger set - buffer internally to avoid STDOUT/STDERR during startup */
+        std::lock_guard<std::mutex> lock(bu_plugin_impl::get_log_buffer_mutex());
+        bu_plugin_impl::get_log_buffer().push_back({level, std::string(buf)});
     }
+}
+
+void bu_plugin_flush_logs(bu_plugin_logger_cb cb) {
+    std::vector<bu_plugin_impl::BufferedLogEntry> logs;
+    {
+        std::lock_guard<std::mutex> lock(bu_plugin_impl::get_log_buffer_mutex());
+        logs = std::move(bu_plugin_impl::get_log_buffer());
+        /* Note: move leaves source in valid but unspecified state; clear ensures it's empty */
+        bu_plugin_impl::get_log_buffer().clear();
+    }
+    
+    if (cb) {
+        for (const auto& entry : logs) {
+            cb(entry.level, entry.msg.c_str());
+        }
+    }
+    /* If cb is NULL, logs are simply discarded */
 }
 
 void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb) {

@@ -311,6 +311,50 @@ static bool test_logger_callback() {
 }
 
 /**
+ * Test: Buffered Startup Logging
+ * Verify that logs are buffered when no logger is set and can be flushed later.
+ */
+static bool test_buffered_logging() {
+    TEST_START("Buffered Startup Logging");
+    
+    /* Temporarily unset the logger to test buffering */
+    bu_plugin_set_logger(nullptr);
+    clear_logs();
+    
+    /* Log some messages - these should be buffered, not going to stderr */
+    bu_plugin_logf(BU_LOG_INFO, "Buffered message 1");
+    bu_plugin_logf(BU_LOG_WARN, "Buffered message 2");
+    bu_plugin_logf(BU_LOG_ERR, "Buffered message 3");
+    
+    /* Captured logs should still be empty (messages went to internal buffer) */
+    TEST_ASSERT(captured_logs.empty(), 
+                "Messages should be buffered internally, not sent to callback");
+    
+    /* Now flush the buffered logs to our test logger */
+    bu_plugin_flush_logs(test_logger);
+    
+    /* Now we should have received the buffered messages */
+    TEST_ASSERT(log_contains(BU_LOG_INFO, "Buffered message 1"), 
+                "Should receive first buffered message");
+    TEST_ASSERT(log_contains(BU_LOG_WARN, "Buffered message 2"), 
+                "Should receive second buffered message");
+    TEST_ASSERT(log_contains(BU_LOG_ERR, "Buffered message 3"), 
+                "Should receive third buffered message");
+    
+    /* Flushing again should give us nothing (buffer was cleared) */
+    clear_logs();
+    bu_plugin_flush_logs(test_logger);
+    TEST_ASSERT(captured_logs.empty(), 
+                "Buffer should be empty after flush");
+    
+    /* Restore the test logger for subsequent tests */
+    bu_plugin_set_logger(test_logger);
+    
+    printf("  Buffered logging verified\n");
+    TEST_PASS();
+}
+
+/**
  * Test: ABI Validation
  * Verify that plugins with mismatched abi_version or struct_size are rejected.
  * Note: This test is limited because we can't easily create mock plugins at runtime.
@@ -484,6 +528,7 @@ int main(int argc, char* argv[]) {
     test_name_scrubbing();
     test_cmd_run();
     test_cmd_run_throwing();
+    test_buffered_logging();
     test_path_allow_policy(plugin_dir);
     test_abi_validation(plugin_dir);
     test_manifest_duplicate_detection(plugin_dir);

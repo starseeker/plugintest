@@ -27,20 +27,6 @@
 static std::string s_libexec_dir;
 
 /**
- * Example logger callback that prefixes messages with the log level.
- * Applications can customize this for their logging framework.
- */
-static void example_logger(int level, const char *msg) {
-    const char *level_str = "INFO";
-    switch (level) {
-        case BU_LOG_INFO: level_str = "INFO"; break;
-        case BU_LOG_WARN: level_str = "WARN"; break;
-        case BU_LOG_ERR:  level_str = "ERROR"; break;
-    }
-    fprintf(stderr, "[bu_plugin] %s: %s\n", level_str, msg);
-}
-
-/**
  * Example path allow policy callback.
  * Only allows loading plugins from the configured libexec directory.
  * Returns 1 if allowed, 0 if denied.
@@ -79,13 +65,17 @@ static int example_path_allow(const char *path) {
  * @return 0 on success.
  *
  * This sets up:
- *   - The logger callback for centralized logging
  *   - The path allow policy to restrict plugin loading to approved directories
  *   - Initializes the plugin core
+ *
+ * Note: This does NOT set a logger callback. During initialization, log messages
+ * are buffered internally. After initialization is complete, call bu_host_flush_logs()
+ * to retrieve any startup messages, or call bu_plugin_set_logger() to set up
+ * a logger for subsequent messages.
  */
 extern "C" BU_PLUGIN_API int bu_host_init(const char *libexec_dir) {
-    /* Set the example logger */
-    bu_plugin_set_logger(example_logger);
+    /* Do NOT set a logger during init - messages are buffered internally
+       to avoid writing to STDOUT/STDERR during early startup */
     
     /* Configure path allow policy if libexec_dir is provided */
     if (libexec_dir && libexec_dir[0] != '\0') {
@@ -99,6 +89,19 @@ extern "C" BU_PLUGIN_API int bu_host_init(const char *libexec_dir) {
     /* Initialize the plugin core */
     return bu_plugin_init();
 }
+
+/*
+ * Example of how to flush startup logs after initialization:
+ *
+ *   // Define a logger callback
+ *   void my_logger(int level, const char *msg) {
+ *       fprintf(stderr, "[%d] %s\n", level, msg);
+ *   }
+ *
+ *   // After initialization is complete:
+ *   bu_plugin_flush_logs(my_logger);  // Get any buffered startup messages
+ *   bu_plugin_set_logger(my_logger);  // Set up for future messages
+ */
 
 /* Built-in help command for testing */
 static int builtin_help(void) {
