@@ -449,11 +449,11 @@ static bool has_internal_whitespace(const std::string& s) {
 
 extern "C" {
 
-void bu_plugin_set_logger(bu_plugin_logger_cb cb) {
+BU_PLUGIN_API void bu_plugin_set_logger(bu_plugin_logger_cb cb) {
     bu_plugin_impl::get_logger() = cb;
 }
 
-void bu_plugin_logf(int level, const char *fmt, ...) {
+BU_PLUGIN_API void bu_plugin_logf(int level, const char *fmt, ...) {
     /* Buffer size of 2048 should be sufficient for most log messages.
        Messages longer than this will be truncated. */
     char buf[2048];
@@ -474,7 +474,7 @@ void bu_plugin_logf(int level, const char *fmt, ...) {
     }
 }
 
-void bu_plugin_flush_logs(bu_plugin_logger_cb cb) {
+BU_PLUGIN_API void bu_plugin_flush_logs(bu_plugin_logger_cb cb) {
     std::vector<bu_plugin_impl::BufferedLogEntry> logs;
     {
         std::lock_guard<std::mutex> lock(bu_plugin_impl::get_log_buffer_mutex());
@@ -491,11 +491,11 @@ void bu_plugin_flush_logs(bu_plugin_logger_cb cb) {
     /* If cb is NULL, logs are simply discarded */
 }
 
-void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb) {
+BU_PLUGIN_API void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb) {
     bu_plugin_impl::get_path_allow() = cb;
 }
 
-int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
+BU_PLUGIN_API int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
     
     /* Trim whitespace from name */
