@@ -20,7 +20,7 @@ option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer
 
 # Compiler-specific warning flags
 if(ENABLE_STRICT_WARNINGS)
-    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         # Common warnings for both C and C++
         add_compile_options(
             -Wall
@@ -39,7 +39,7 @@ if(ENABLE_STRICT_WARNINGS)
             -Wundef
             -Wunused
         )
-        # C++ only warnings
+        # C++ only warnings (using generator expressions to apply only to C++ files)
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
             add_compile_options(
                 $<$<COMPILE_LANGUAGE:CXX>:-Wnon-virtual-dtor>
@@ -47,7 +47,8 @@ if(ENABLE_STRICT_WARNINGS)
                 $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>
             )
         endif()
-        if(CMAKE_C_COMPILER_ID MATCHES "GNU")
+        # GNU-specific warnings for both C and C++
+        if(CMAKE_C_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             add_compile_options(
                 -Wlogical-op
                 -Wduplicated-cond
