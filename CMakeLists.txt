@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.14)
-project(plugintest LANGUAGES CXX)
+project(plugintest LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # Build type configuration
 if(NOT CMAKE_BUILD_TYPE)
@@ -17,7 +20,8 @@ option(ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer
 
 # Compiler-specific warning flags
 if(ENABLE_STRICT_WARNINGS)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+        # Common warnings for both C and C++
         add_compile_options(
             -Wall
             -Wextra
@@ -29,16 +33,21 @@ if(ENABLE_STRICT_WARNINGS)
             -Wformat=2
             -Wimplicit-fallthrough
             -Wmissing-include-dirs
-            -Wnon-virtual-dtor
-            -Wold-style-cast
-            -Woverloaded-virtual
             -Wredundant-decls
             -Wshadow
             -Wsign-conversion
             -Wundef
             -Wunused
         )
-        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        # C++ only warnings
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+            add_compile_options(
+                $<$<COMPILE_LANGUAGE:CXX>:-Wnon-virtual-dtor>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wold-style-cast>
+                $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>
+            )
+        endif()
+        if(CMAKE_C_COMPILER_ID MATCHES "GNU")
             add_compile_options(
                 -Wlogical-op
                 -Wduplicated-cond
@@ -102,6 +111,7 @@ add_subdirectory(plugin/duplicate_plugin)
 add_subdirectory(plugin/stress_plugin)
 add_subdirectory(plugin/large_plugin)
 add_subdirectory(plugin/edge_cases)
+add_subdirectory(plugin/c_only)
 
 # Tests
 add_subdirectory(tests)

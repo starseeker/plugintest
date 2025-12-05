@@ -33,6 +33,7 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 - `plugin/string_plugin/`: Plugin with string-related commands (length, upper)
 - `plugin/duplicate_plugin/`: Plugin that deliberately has a duplicate command name to test conflict handling
 - `plugin/stress_plugin/`: Plugin with 50 commands for stress testing
+- `plugin/c_only/`: A pure C plugin (no C++) to verify cross-platform C plugin support
 - `plugin/edge_cases/`: Edge case plugins for testing:
   - `empty_plugin`: Plugin with no commands
   - `null_impl_plugin`: Plugin with null implementations in some commands
@@ -52,6 +53,7 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - Null implementations
   - Special command names (very long names, underscores, numbers, mixed case)
   - Stress testing with 50 commands
+  - C-only plugins (pure C without C++)
 - `tests/test_builds.sh`: Script to test various build configurations:
   - Release and Debug builds
   - Strict warning configurations
