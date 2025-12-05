@@ -386,6 +386,40 @@ static bool test_scalability(const char* plugin_dir) {
     TEST_PASS();
 }
 
+/* Test: C-only plugin (no C++ in plugin code) */
+static bool test_c_only_plugin(const char* plugin_dir) {
+    TEST_START("C-only Plugin");
+    
+    size_t count_before = bu_plugin_cmd_count();
+    std::string path = get_plugin_path(plugin_dir, "plugin/c_only", "bu-c-only-plugin");
+    
+    printf("  Loading C-only plugin: %s\n", path.c_str());
+    int result = bu_plugin_load(path.c_str());
+    
+    TEST_ASSERT(result >= 0, "C-only plugin load should succeed");
+    TEST_ASSERT_EQUAL(2, result, "C-only plugin should register 2 commands");
+    printf("  Registered %d command(s) from C-only plugin\n", result);
+    
+    size_t count_after = bu_plugin_cmd_count();
+    TEST_ASSERT(count_after > count_before, "Command count should increase");
+    
+    /* Verify c_only_hello command */
+    TEST_ASSERT(bu_plugin_cmd_exists("c_only_hello") == 1, "Command 'c_only_hello' should exist");
+    bu_plugin_cmd_impl hello_fn = bu_plugin_cmd_get("c_only_hello");
+    TEST_ASSERT(hello_fn != nullptr, "Should be able to get 'c_only_hello' command");
+    int hello_result = hello_fn();
+    TEST_ASSERT_EQUAL(100, hello_result, "c_only_hello should return 100");
+    
+    /* Verify c_only_goodbye command */
+    TEST_ASSERT(bu_plugin_cmd_exists("c_only_goodbye") == 1, "Command 'c_only_goodbye' should exist");
+    bu_plugin_cmd_impl goodbye_fn = bu_plugin_cmd_get("c_only_goodbye");
+    TEST_ASSERT(goodbye_fn != nullptr, "Should be able to get 'c_only_goodbye' command");
+    int goodbye_result = goodbye_fn();
+    TEST_ASSERT_EQUAL(200, goodbye_result, "c_only_goodbye should return 200");
+    
+    TEST_PASS();
+}
+
 /* Test: Invalid plugin paths */
 static bool test_invalid_paths() {
     TEST_START("Invalid Plugin Paths");
@@ -601,6 +635,7 @@ int main(int argc, char* argv[]) {
     test_special_names(plugin_dir);
     test_stress(plugin_dir);
     test_scalability(plugin_dir);
+    test_c_only_plugin(plugin_dir);
     
     /* Print summary */
     printf("\n========================================\n");
