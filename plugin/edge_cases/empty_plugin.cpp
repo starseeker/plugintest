@@ -16,7 +16,9 @@ static bu_plugin_manifest s_manifest = {
     "bu-empty-plugin",      /* plugin_name */
     1,                      /* version */
     0,                      /* cmd_count - no commands */
-    nullptr                 /* commands - null array */
+    nullptr,                /* commands - null array */
+    BU_PLUGIN_ABI_VERSION,  /* abi_version */
+    sizeof(bu_plugin_manifest) /* struct_size */
 };
 
 /* Export the manifest */

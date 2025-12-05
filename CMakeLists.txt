@@ -91,7 +91,7 @@ enable_testing()
 add_library(bu_plugin_host SHARED
     host/libbu_init.cpp
 )
-target_compile_definitions(bu_plugin_host PRIVATE BU_PLUGIN_IMPLEMENTATION)
+target_compile_definitions(bu_plugin_host PRIVATE BU_PLUGIN_IMPLEMENTATION BU_PLUGIN_BUILDING_DLL)
 if(WIN32)
     target_link_libraries(bu_plugin_host PRIVATE)
 else()

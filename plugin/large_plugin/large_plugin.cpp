@@ -137,7 +137,9 @@ static bu_plugin_manifest s_manifest = {
     "bu-large-plugin",      /* plugin_name */
     1,                      /* version */
     500,                    /* cmd_count - 500 commands */
-    s_commands              /* commands */
+    s_commands,             /* commands */
+    BU_PLUGIN_ABI_VERSION,  /* abi_version */
+    sizeof(bu_plugin_manifest) /* struct_size */
 };
 
 /* Export the manifest */

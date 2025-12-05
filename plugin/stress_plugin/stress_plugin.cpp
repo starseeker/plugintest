@@ -130,7 +130,9 @@ static bu_plugin_manifest s_manifest = {
     "bu-stress-plugin",     /* plugin_name */
     1,                      /* version */
     50,                     /* cmd_count - 50 commands */
-    s_commands              /* commands */
+    s_commands,             /* commands */
+    BU_PLUGIN_ABI_VERSION,  /* abi_version */
+    sizeof(bu_plugin_manifest) /* struct_size */
 };
 
 /* Export the manifest */

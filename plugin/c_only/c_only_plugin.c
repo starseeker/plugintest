@@ -5,6 +5,7 @@
  *   - Is written entirely in C (no C++ features)
  *   - Tests that the plugin system works with pure C plugins
  *   - Verifies cross-platform compatibility (especially Windows)
+ *   - Includes abi_version and struct_size for ABI safety
  */
 
 #include <stdio.h>
@@ -33,12 +34,14 @@ static bu_plugin_cmd s_commands[] = {
     { "c_only_goodbye", c_only_goodbye }
 };
 
-/* Define the manifest */
+/* Define the manifest with ABI safety fields */
 static bu_plugin_manifest s_manifest = {
     "bu-c-only-plugin",     /* plugin_name */
     1,                      /* version */
     2,                      /* cmd_count */
-    s_commands              /* commands */
+    s_commands,             /* commands */
+    BU_PLUGIN_ABI_VERSION,  /* abi_version */
+    sizeof(bu_plugin_manifest) /* struct_size */
 };
 
 /* Export the manifest */
