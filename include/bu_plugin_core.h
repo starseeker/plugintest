@@ -4,7 +4,10 @@
  * This header provides:
  *   - Required BU_PLUGIN_* macros for cross-platform symbol export/import
  *   - Core types: bu_plugin_cmd_impl (function pointer), bu_plugin_cmd (command descriptor)
- *   - Registry APIs: register, exists, get, count, init
+ *   - Registry APIs: register, exists, get, count, init, run
+ *   - Logger callback API for centralized logging
+ *   - Path-allow policy callback for security
+ *   - ABI safety via abi_version and struct_size in manifest
  *   - REGISTER_BU_PLUGIN_COMMAND macro for C++ built-in command registration
  *   - Built-in registry implementation (C++ only) guarded by BU_PLUGIN_IMPLEMENTATION
  *   - Dynamic plugin manifest helpers: bu_plugin_manifest, BU_PLUGIN_DECLARE_MANIFEST
@@ -23,6 +26,7 @@ extern "C" {
  * Cross-platform symbol visibility macros.
  * Define BU_PLUGIN_EXPORT for exporting symbols from shared libraries,
  * and BU_PLUGIN_IMPORT for importing them.
+ * These work without requiring global compiler flags for visibility.
  */
 #if defined(_WIN32) || defined(__CYGWIN__)
 #  ifdef BU_PLUGIN_BUILDING_DLL
@@ -33,7 +37,7 @@ extern "C" {
 #  define BU_PLUGIN_IMPORT __declspec(dllimport)
 #  define BU_PLUGIN_LOCAL
 #else
-#  if __GNUC__ >= 4
+#  if defined(__GNUC__) && __GNUC__ >= 4
 #    define BU_PLUGIN_EXPORT __attribute__ ((visibility ("default")))
 #    define BU_PLUGIN_IMPORT __attribute__ ((visibility ("default")))
 #    define BU_PLUGIN_LOCAL  __attribute__ ((visibility ("hidden")))
@@ -56,8 +60,65 @@ extern "C" {
 #endif
 
 /*
- * Type definitions for plugin commands.
+ * Log levels for the logger callback.
  */
+#define BU_LOG_INFO  0
+#define BU_LOG_WARN  1
+#define BU_LOG_ERR   2
+
+/**
+ * bu_plugin_logger_cb - Logger callback function type.
+ * @param level  Log level (BU_LOG_INFO, BU_LOG_WARN, BU_LOG_ERR).
+ * @param msg    The log message (null-terminated).
+ */
+typedef void (*bu_plugin_logger_cb)(int level, const char *msg);
+
+/**
+ * bu_plugin_path_allow_cb - Path allow policy callback function type.
+ * @param path  The plugin path being checked.
+ * @return 1 if the path is allowed, 0 if denied.
+ */
+typedef int (*bu_plugin_path_allow_cb)(const char *path);
+
+/**
+ * bu_plugin_set_logger - Set the logger callback.
+ * @param cb  The callback function for logging. Pass NULL to restore default stderr logger.
+ */
+BU_PLUGIN_API void bu_plugin_set_logger(bu_plugin_logger_cb cb);
+
+/**
+ * bu_plugin_logf - Log a formatted message.
+ * @param level  Log level (BU_LOG_INFO, BU_LOG_WARN, BU_LOG_ERR).
+ * @param fmt    printf-style format string.
+ * @param ...    Format arguments.
+ */
+BU_PLUGIN_API void bu_plugin_logf(int level, const char *fmt, ...);
+
+/**
+ * bu_plugin_set_path_allow - Set the path allow policy callback.
+ * @param cb  The callback to check if a path is allowed for loading.
+ *            Pass NULL to allow all paths (default behavior).
+ *
+ * When set, bu_plugin_load will call this callback before attempting to load
+ * a plugin. If the callback returns 0, the load is rejected.
+ */
+BU_PLUGIN_API void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb);
+
+/*
+ * Type definitions for plugin commands.
+ * Applications can define BU_PLUGIN_CMD_RET and BU_PLUGIN_CMD_ARGS before
+ * including this header to customize the command function signature.
+ */
+
+/* Default return type is int */
+#ifndef BU_PLUGIN_CMD_RET
+#define BU_PLUGIN_CMD_RET int
+#endif
+
+/* Default arguments is void */
+#ifndef BU_PLUGIN_CMD_ARGS
+#define BU_PLUGIN_CMD_ARGS void
+#endif
 
 /**
  * bu_plugin_cmd_impl - Function pointer type for a plugin command implementation.
@@ -66,7 +127,7 @@ extern "C" {
  * For this test, it's simply: int (*)(void)
  */
 #ifndef BU_PLUGIN_CMD_IMPL_DEFINED
-typedef int (*bu_plugin_cmd_impl)(void);
+typedef BU_PLUGIN_CMD_RET (*bu_plugin_cmd_impl)(BU_PLUGIN_CMD_ARGS);
 #define BU_PLUGIN_CMD_IMPL_DEFINED
 #endif
 
@@ -79,13 +140,26 @@ typedef struct bu_plugin_cmd {
 } bu_plugin_cmd;
 
 /**
+ * ABI version for bu_plugin_manifest. Increment when making breaking changes.
+ */
+#define BU_PLUGIN_ABI_VERSION 1
+
+/**
  * bu_plugin_manifest - Descriptor for a plugin's exported commands.
+ * 
+ * For ABI safety, manifests include:
+ *   - abi_version: Must match BU_PLUGIN_ABI_VERSION (currently 1)
+ *   - struct_size: Must be >= sizeof(bu_plugin_manifest)
+ *
+ * This allows the loader to detect incompatible plugins.
  */
 typedef struct bu_plugin_manifest {
     const char *plugin_name;    /* Name of the plugin */
     unsigned int version;       /* Plugin manifest version (for compatibility checks) */
     unsigned int cmd_count;     /* Number of commands in the commands array */
     const bu_plugin_cmd *commands;  /* Array of command descriptors */
+    unsigned int abi_version;   /* ABI version, must be BU_PLUGIN_ABI_VERSION */
+    size_t struct_size;         /* Size of this struct, for forward compatibility */
 } bu_plugin_manifest;
 
 /*
@@ -94,9 +168,16 @@ typedef struct bu_plugin_manifest {
 
 /**
  * bu_plugin_cmd_register - Register a command with the global registry.
- * @param name  The command name.
+ * @param name  The command name. Leading/trailing whitespace is trimmed.
+ *              Internal whitespace triggers a warning but is allowed.
  * @param impl  The function pointer for the command implementation.
- * @return 0 on success, non-zero on failure (e.g., duplicate name).
+ * @return 0 on success, 1 if duplicate (first wins policy), -1 on error.
+ *
+ * Behavior:
+ *   - Trims leading/trailing whitespace from name
+ *   - Warns if internal whitespace is detected
+ *   - Logs and returns 1 if a command with the same name already exists
+ *   - Returns -1 for null/empty name or null impl
  */
 BU_PLUGIN_API int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl);
 
@@ -129,6 +210,10 @@ BU_PLUGIN_API size_t bu_plugin_cmd_count(void);
  * Commands are iterated in alphabetical order by name for stable output.
  * The callback should return 0 to continue, non-zero to stop iteration.
  *
+ * Implementation note: Uses a snapshot pattern to minimize lock duration.
+ * The registry is locked only while copying command names, then unlocked
+ * before sorting and calling the callback.
+ *
  * @code
  * // Callback to print each command name
  * static int print_command(const char *name, bu_plugin_cmd_impl impl, void *user_data) {
@@ -157,9 +242,27 @@ BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *
 BU_PLUGIN_API int bu_plugin_init(void);
 
 /**
+ * bu_plugin_cmd_run - Safely run a registered command by name.
+ * @param name  The command name to run.
+ * @param result  Output parameter for the command's return value (can be NULL).
+ * @return 0 on success, -1 if command not found, -2 if command threw an exception.
+ *
+ * On C++ builds, this function wraps the command execution in try/catch
+ * to safely handle exceptions. The exception is logged but not re-thrown.
+ */
+BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result);
+
+/**
  * bu_plugin_load - Load a dynamic plugin from a shared library path.
  * @param path  Path to the shared library (.so, .dylib, .dll).
  * @return Number of commands registered from the plugin, or -1 on error.
+ *
+ * This function:
+ *   - Enforces the path-allow policy (if set via bu_plugin_set_path_allow)
+ *   - Windows: Converts UTF-8 path to UTF-16; uses LoadLibraryExW with safer flags
+ *   - POSIX: Clears dlerror before dlsym for accurate error reporting
+ *   - Validates manifest abi_version and struct_size
+ *   - Detects and logs duplicate command names within a manifest
  *
  * Note: Plugins are kept loaded for the lifetime of the process. There is
  * currently no bu_plugin_unload() function. This is intentional for simplicity
@@ -232,11 +335,16 @@ namespace bu_plugin_detail {
 #if defined(BU_PLUGIN_IMPLEMENTATION) && defined(__cplusplus)
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <cstdio>
+#include <cstdarg>
+#include <cstring>
+#include <cctype>
 #include <mutex>
 #include <vector>
 #include <algorithm>
+#include <exception>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -261,34 +369,120 @@ static std::mutex& get_mutex() {
     return mtx;
 }
 
+/* Logger callback storage */
+static bu_plugin_logger_cb& get_logger() {
+    static bu_plugin_logger_cb logger = nullptr;
+    return logger;
+}
+
+/* Path allow callback storage */
+static bu_plugin_path_allow_cb& get_path_allow() {
+    static bu_plugin_path_allow_cb cb = nullptr;
+    return cb;
+}
+
+/* Default stderr logger */
+static void default_logger(int level, const char *msg) {
+    const char *prefix = "";
+    switch (level) {
+        case BU_LOG_INFO: prefix = "[INFO] "; break;
+        case BU_LOG_WARN: prefix = "[WARN] "; break;
+        case BU_LOG_ERR:  prefix = "[ERROR] "; break;
+    }
+    fprintf(stderr, "%s%s\n", prefix, msg);
+}
+
+/* Trim leading/trailing whitespace from a string, returns trimmed copy */
+static std::string trim_whitespace(const char *str) {
+    if (!str) return "";
+    const char *start = str;
+    while (*start && std::isspace(static_cast<unsigned char>(*start))) {
+        ++start;
+    }
+    if (*start == '\0') return "";
+    const char *end = str + std::strlen(str) - 1;
+    while (end > start && std::isspace(static_cast<unsigned char>(*end))) {
+        --end;
+    }
+    return std::string(start, static_cast<size_t>(end - start + 1));
+}
+
+/* Check if string contains internal whitespace */
+static bool has_internal_whitespace(const std::string& s) {
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (std::isspace(static_cast<unsigned char>(s[i]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } /* namespace bu_plugin_impl */
 
 extern "C" {
 
+void bu_plugin_set_logger(bu_plugin_logger_cb cb) {
+    bu_plugin_impl::get_logger() = cb;
+}
+
+void bu_plugin_logf(int level, const char *fmt, ...) {
+    char buf[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    buf[sizeof(buf) - 1] = '\0';
+    
+    bu_plugin_logger_cb logger = bu_plugin_impl::get_logger();
+    if (logger) {
+        logger(level, buf);
+    } else {
+        bu_plugin_impl::default_logger(level, buf);
+    }
+}
+
+void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb) {
+    bu_plugin_impl::get_path_allow() = cb;
+}
+
 int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
-    if (name[0] == '\0') return -1;  /* Reject empty string names */
+    
+    /* Trim whitespace from name */
+    std::string trimmed = bu_plugin_impl::trim_whitespace(name);
+    if (trimmed.empty()) return -1;  /* Reject empty string names */
+    
+    /* Warn about internal whitespace */
+    if (bu_plugin_impl::has_internal_whitespace(trimmed)) {
+        bu_plugin_logf(BU_LOG_WARN, "Command name '%s' contains internal whitespace", trimmed.c_str());
+    }
+    
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
-    if (reg.find(name) != reg.end()) {
-        return -1; /* Duplicate */
+    if (reg.find(trimmed) != reg.end()) {
+        bu_plugin_logf(BU_LOG_WARN, "Duplicate command '%s' ignored (first wins)", trimmed.c_str());
+        return 1; /* Duplicate - first wins */
     }
-    reg[name] = impl;
+    reg[trimmed] = impl;
     return 0;
 }
 
 int bu_plugin_cmd_exists(const char *name) {
     if (!name) return 0;
+    std::string trimmed = bu_plugin_impl::trim_whitespace(name);
+    if (trimmed.empty()) return 0;
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
-    return reg.find(name) != reg.end() ? 1 : 0;
+    return reg.find(trimmed) != reg.end() ? 1 : 0;
 }
 
 bu_plugin_cmd_impl bu_plugin_cmd_get(const char *name) {
     if (!name) return nullptr;
+    std::string trimmed = bu_plugin_impl::trim_whitespace(name);
+    if (trimmed.empty()) return nullptr;
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
-    auto it = reg.find(name);
+    auto it = reg.find(trimmed);
     return (it != reg.end()) ? it->second : nullptr;
 }
 
@@ -299,24 +493,29 @@ size_t bu_plugin_cmd_count(void) {
 
 void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     if (!callback) return;
-    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
-    auto& reg = bu_plugin_impl::get_registry();
     
-    /* Collect and sort command names for stable, predictable output order */
-    std::vector<std::string> names;
-    names.reserve(reg.size());
-    for (const auto& pair : reg) {
-        names.push_back(pair.first);
+    /* Snapshot the registry under lock, then release lock for iteration */
+    std::vector<std::pair<std::string, bu_plugin_cmd_impl>> snapshot;
+    {
+        std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
+        auto& reg = bu_plugin_impl::get_registry();
+        snapshot.reserve(reg.size());
+        for (const auto& pair : reg) {
+            snapshot.push_back(pair);
+        }
     }
-    std::sort(names.begin(), names.end());
     
-    /* Iterate in sorted order */
-    for (const auto& name : names) {
-        auto it = reg.find(name);
-        if (it != reg.end()) {
-            if (callback(it->first.c_str(), it->second, user_data) != 0) {
-                break;  /* Callback requested stop */
-            }
+    /* Sort out of lock */
+    std::sort(snapshot.begin(), snapshot.end(),
+        [](const std::pair<std::string, bu_plugin_cmd_impl>& a,
+           const std::pair<std::string, bu_plugin_cmd_impl>& b) {
+            return a.first < b.first;
+        });
+    
+    /* Iterate out of lock */
+    for (const auto& pair : snapshot) {
+        if (callback(pair.first.c_str(), pair.second, user_data) != 0) {
+            break;  /* Callback requested stop */
         }
     }
 }
@@ -326,35 +525,94 @@ int bu_plugin_init(void) {
     return 0;
 }
 
+int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
+    bu_plugin_cmd_impl fn = bu_plugin_cmd_get(name);
+    if (!fn) {
+        bu_plugin_logf(BU_LOG_ERR, "Command '%s' not found", name ? name : "(null)");
+        return -1;
+    }
+    
+#ifdef __cplusplus
+    try {
+#endif
+        BU_PLUGIN_CMD_RET ret = fn();
+        if (result) {
+            *result = ret;
+        }
+        return 0;
+#ifdef __cplusplus
+    } catch (const std::exception& e) {
+        bu_plugin_logf(BU_LOG_ERR, "Command '%s' threw exception: %s", name, e.what());
+        return -2;
+    } catch (...) {
+        bu_plugin_logf(BU_LOG_ERR, "Command '%s' threw unknown exception", name);
+        return -2;
+    }
+#endif
+}
+
 /**
  * bu_plugin_load - Load a dynamic plugin and register its commands.
  */
 int bu_plugin_load(const char *path) {
-    if (!path) return -1;
+    if (!path || path[0] == '\0') {
+        bu_plugin_logf(BU_LOG_ERR, "Invalid plugin path (null or empty)");
+        return -1;
+    }
+    
+    /* Enforce path allow policy */
+    bu_plugin_path_allow_cb path_allow = bu_plugin_impl::get_path_allow();
+    if (path_allow && !path_allow(path)) {
+        bu_plugin_logf(BU_LOG_ERR, "Plugin path '%s' not allowed by policy", path);
+        return -1;
+    }
 
 #if defined(_WIN32)
-    HMODULE handle = LoadLibraryA(path);
+    /* Convert UTF-8 path to UTF-16 for Windows */
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, path, -1, NULL, 0);
+    if (wlen <= 0) {
+        bu_plugin_logf(BU_LOG_ERR, "Failed to convert plugin path to UTF-16: %s (error %lu)", path, GetLastError());
+        return -1;
+    }
+    std::vector<wchar_t> wpath(static_cast<size_t>(wlen));
+    MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath.data(), wlen);
+    
+    /* Use LoadLibraryExW with safer flags (no DLL search path manipulation) */
+    HMODULE handle = LoadLibraryExW(wpath.data(), NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     if (!handle) {
-        fprintf(stderr, "Failed to load plugin: %s (error %lu)\n", path, GetLastError());
+        /* Fallback to LoadLibraryW if the flags are not supported */
+        handle = LoadLibraryW(wpath.data());
+    }
+    if (!handle) {
+        DWORD err = GetLastError();
+        bu_plugin_logf(BU_LOG_ERR, "Failed to load plugin: %s (Windows error %lu)", path, err);
         return -1;
     }
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = (info_fn)GetProcAddress(handle, "bu_plugin_info");
+    info_fn get_info = reinterpret_cast<info_fn>(reinterpret_cast<void*>(GetProcAddress(handle, "bu_plugin_info")));
     if (!get_info) {
-        fprintf(stderr, "Plugin %s does not export bu_plugin_info\n", path);
+        DWORD err = GetLastError();
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export bu_plugin_info (Windows error %lu)", path, err);
         FreeLibrary(handle);
         return -1;
     }
 #else
     void *handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
     if (!handle) {
-        fprintf(stderr, "Failed to load plugin: %s (%s)\n", path, dlerror());
+        const char *err = dlerror();
+        bu_plugin_logf(BU_LOG_ERR, "Failed to load plugin: %s (%s)", path, err ? err : "unknown error");
         return -1;
     }
+    
+    /* Clear dlerror before dlsym for accurate error reporting */
+    dlerror();
+    
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = (info_fn)dlsym(handle, "bu_plugin_info");
-    if (!get_info) {
-        fprintf(stderr, "Plugin %s does not export bu_plugin_info\n", path);
+    info_fn get_info = reinterpret_cast<info_fn>(dlsym(handle, "bu_plugin_info"));
+    const char *sym_err = dlerror();
+    if (sym_err || !get_info) {
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export bu_plugin_info (%s)", 
+                       path, sym_err ? sym_err : "symbol not found");
         dlclose(handle);
         return -1;
     }
@@ -362,7 +620,7 @@ int bu_plugin_load(const char *path) {
 
     const bu_plugin_manifest *manifest = get_info();
     if (!manifest) {
-        fprintf(stderr, "Plugin %s returned NULL manifest\n", path);
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s returned NULL manifest", path);
 #if defined(_WIN32)
         FreeLibrary(handle);
 #else
@@ -371,20 +629,59 @@ int bu_plugin_load(const char *path) {
         return -1;
     }
 
-    /* Validate manifest */
+    /* Validate manifest ABI version and struct_size */
+    if (manifest->abi_version != BU_PLUGIN_ABI_VERSION) {
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible ABI version %u (expected %u)", 
+                       path, manifest->abi_version, BU_PLUGIN_ABI_VERSION);
+#if defined(_WIN32)
+        FreeLibrary(handle);
+#else
+        dlclose(handle);
+#endif
+        return -1;
+    }
+    
+    if (manifest->struct_size < sizeof(bu_plugin_manifest)) {
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible manifest struct_size %zu (expected >= %zu)", 
+                       path, manifest->struct_size, sizeof(bu_plugin_manifest));
+#if defined(_WIN32)
+        FreeLibrary(handle);
+#else
+        dlclose(handle);
+#endif
+        return -1;
+    }
+
+    /* Validate manifest has commands */
     if (!manifest->commands || manifest->cmd_count == 0) {
-        fprintf(stderr, "Plugin %s has no commands\n", path);
+        bu_plugin_logf(BU_LOG_INFO, "Plugin %s has no commands", path);
         /* Not an error, just nothing to register */
         return 0;
+    }
+
+    /* Detect duplicate command names within the manifest */
+    std::unordered_set<std::string> manifest_names;
+    for (unsigned int i = 0; i < manifest->cmd_count; i++) {
+        const bu_plugin_cmd *cmd = &manifest->commands[i];
+        if (cmd->name) {
+            std::string trimmed = bu_plugin_impl::trim_whitespace(cmd->name);
+            if (!trimmed.empty() && manifest_names.find(trimmed) != manifest_names.end()) {
+                bu_plugin_logf(BU_LOG_WARN, "Plugin %s has duplicate command name '%s' in manifest", 
+                               path, trimmed.c_str());
+            }
+            manifest_names.insert(trimmed);
+        }
     }
 
     int registered = 0;
     for (unsigned int i = 0; i < manifest->cmd_count; i++) {
         const bu_plugin_cmd *cmd = &manifest->commands[i];
         if (cmd->name && cmd->impl) {
-            if (bu_plugin_cmd_register(cmd->name, cmd->impl) == 0) {
+            int result = bu_plugin_cmd_register(cmd->name, cmd->impl);
+            if (result == 0) {
                 registered++;
             }
+            /* result == 1 means duplicate (logged by register function) */
         }
     }
 
