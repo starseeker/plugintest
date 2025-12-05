@@ -52,11 +52,21 @@ static int example_path_allow(const char *path) {
     
     /* Check if the path starts with the libexec directory */
     size_t libexec_len = s_libexec_dir.length();
+    size_t path_len = std::strlen(path);
+    
+    /* Path must be at least as long as libexec_dir */
+    if (path_len < libexec_len) {
+        return 0;  /* Deny - path too short */
+    }
+    
     if (std::strncmp(path, s_libexec_dir.c_str(), libexec_len) == 0) {
         /* Path must either be exactly libexec_dir or followed by a path separator */
+        if (path_len == libexec_len) {
+            return 1;  /* Allow - exact match */
+        }
         char next = path[libexec_len];
-        if (next == '\0' || next == '/' || next == '\\') {
-            return 1;  /* Allow */
+        if (next == '/' || next == '\\') {
+            return 1;  /* Allow - path separator follows */
         }
     }
     return 0;  /* Deny */

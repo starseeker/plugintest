@@ -426,7 +426,9 @@ void bu_plugin_set_logger(bu_plugin_logger_cb cb) {
 }
 
 void bu_plugin_logf(int level, const char *fmt, ...) {
-    char buf[1024];
+    /* Buffer size of 2048 should be sufficient for most log messages.
+       Messages longer than this will be truncated. */
+    char buf[2048];
     va_list args;
     va_start(args, fmt);
     vsnprintf(buf, sizeof(buf), fmt, args);

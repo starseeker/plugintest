@@ -122,14 +122,25 @@ static int test_path_allow(const char *path) {
     if (!path || s_allowed_dir.empty()) {
         return 0;
     }
-    size_t len = s_allowed_dir.length();
-    if (std::strncmp(path, s_allowed_dir.c_str(), len) == 0) {
-        char next = path[len];
-        if (next == '\0' || next == '/' || next == '\\') {
-            return 1;
+    size_t allowed_len = s_allowed_dir.length();
+    size_t path_len = std::strlen(path);
+    
+    /* Path must be at least as long as allowed_dir */
+    if (path_len < allowed_len) {
+        return 0;  /* Deny - path too short */
+    }
+    
+    if (std::strncmp(path, s_allowed_dir.c_str(), allowed_len) == 0) {
+        /* Path must either be exactly allowed_dir or followed by a path separator */
+        if (path_len == allowed_len) {
+            return 1;  /* Allow - exact match */
+        }
+        char next = path[allowed_len];
+        if (next == '/' || next == '\\') {
+            return 1;  /* Allow - path separator follows */
         }
     }
-    return 0;
+    return 0;  /* Deny */
 }
 
 /**
