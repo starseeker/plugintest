@@ -168,7 +168,7 @@ typedef struct bu_plugin_cmd {
 
 /**
  * bu_plugin_manifest - Descriptor for a plugin's exported commands.
- * 
+ *
  * For ABI safety, manifests include:
  *   - abi_version: Must match BU_PLUGIN_ABI_VERSION (currently 1)
  *   - struct_size: Must be >= sizeof(bu_plugin_manifest)
@@ -293,6 +293,10 @@ BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result)
  */
 BU_PLUGIN_API int bu_plugin_load(const char *path);
 
+/* Additional optional APIs (handles retained for lifetime, optional unload) */
+BU_PLUGIN_API size_t bu_plugin_loaded_modules_count(void);
+BU_PLUGIN_API void   bu_plugin_shutdown(void);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif
@@ -336,16 +340,26 @@ namespace bu_plugin_detail {
  *   static bu_plugin_manifest s_manifest = { "myplugin", 1, 1, s_commands };
  *   BU_PLUGIN_DECLARE_MANIFEST(s_manifest)
  *
- * The host will dlsym() for "bu_plugin_info" (or the host-specific symbol name).
+ * The host will dlsym() for a namespaced symbol "<host>_plugin_info".
+ * To set the host namespace, define BU_PLUGIN_NAME (e.g., 'ged') before including.
  */
+#ifndef BU_PLUGIN_NAME
+#define BU_PLUGIN_NAME bu
+#endif
+#define BU_PLUGIN_CAT2(a,b) a##b
+#define BU_PLUGIN_STR1(x) #x
+#define BU_PLUGIN_STR(x) BU_PLUGIN_STR1(x)
+#define BU_PLUGIN_MANIFEST_FN  BU_PLUGIN_CAT2(BU_PLUGIN_NAME, _plugin_info)
+#define BU_PLUGIN_MANIFEST_SYM BU_PLUGIN_STR(BU_PLUGIN_MANIFEST_FN)
+
 #ifdef __cplusplus
 #define BU_PLUGIN_DECLARE_MANIFEST(manifest_var) \
-    extern "C" BU_PLUGIN_EXPORT const bu_plugin_manifest* bu_plugin_info(void) { \
+    extern "C" BU_PLUGIN_EXPORT const bu_plugin_manifest* BU_PLUGIN_MANIFEST_FN(void) { \
         return &(manifest_var); \
     }
 #else
 #define BU_PLUGIN_DECLARE_MANIFEST(manifest_var) \
-    BU_PLUGIN_EXPORT const bu_plugin_manifest* bu_plugin_info(void) { \
+    BU_PLUGIN_EXPORT const bu_plugin_manifest* BU_PLUGIN_MANIFEST_FN(void) { \
         return &(manifest_var); \
     }
 #endif
@@ -420,6 +434,17 @@ static std::mutex& get_log_buffer_mutex() {
     return mtx;
 }
 
+/* Retained module handles (kept loaded for lifetime unless bu_plugin_shutdown is called) */
+#if defined(_WIN32)
+typedef HMODULE bu_plugin_module_handle_t;
+#else
+typedef void*   bu_plugin_module_handle_t;
+#endif
+static std::vector<bu_plugin_module_handle_t>& get_modules() {
+    static std::vector<bu_plugin_module_handle_t> mods;
+    return mods;
+}
+
 /* Trim leading/trailing whitespace from a string, returns trimmed copy */
 static std::string trim_whitespace(const char *str) {
     if (!str) return "";
@@ -459,10 +484,14 @@ BU_PLUGIN_API void bu_plugin_logf(int level, const char *fmt, ...) {
     char buf[2048];
     va_list args;
     va_start(args, fmt);
+#if defined(_WIN32)
+    _vsnprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, args);
+#else
     vsnprintf(buf, sizeof(buf), fmt, args);
+#endif
     va_end(args);
     buf[sizeof(buf) - 1] = '\0';
-    
+
     bu_plugin_logger_cb logger = bu_plugin_impl::get_logger();
     if (logger) {
         /* Logger callback is set - dispatch immediately */
@@ -482,7 +511,7 @@ BU_PLUGIN_API void bu_plugin_flush_logs(bu_plugin_logger_cb cb) {
         /* Note: move leaves source in valid but unspecified state; clear ensures it's empty */
         bu_plugin_impl::get_log_buffer().clear();
     }
-    
+
     if (cb) {
         for (const auto& entry : logs) {
             cb(entry.level, entry.msg.c_str());
@@ -497,16 +526,16 @@ BU_PLUGIN_API void bu_plugin_set_path_allow(bu_plugin_path_allow_cb cb) {
 
 BU_PLUGIN_API int bu_plugin_cmd_register(const char *name, bu_plugin_cmd_impl impl) {
     if (!name || !impl) return -1;
-    
+
     /* Trim whitespace from name */
     std::string trimmed = bu_plugin_impl::trim_whitespace(name);
     if (trimmed.empty()) return -1;  /* Reject empty string names */
-    
+
     /* Warn about internal whitespace */
     if (bu_plugin_impl::has_internal_whitespace(trimmed)) {
         bu_plugin_logf(BU_LOG_WARN, "Command name '%s' contains internal whitespace", trimmed.c_str());
     }
-    
+
     std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
     auto& reg = bu_plugin_impl::get_registry();
     if (reg.find(trimmed) != reg.end()) {
@@ -543,7 +572,7 @@ BU_PLUGIN_API size_t bu_plugin_cmd_count(void) {
 
 BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *user_data) {
     if (!callback) return;
-    
+
     /* Snapshot the registry under lock, then release lock for iteration */
     std::vector<std::pair<std::string, bu_plugin_cmd_impl>> snapshot;
     {
@@ -554,14 +583,14 @@ BU_PLUGIN_API void bu_plugin_cmd_foreach(bu_plugin_cmd_callback callback, void *
             snapshot.push_back(pair);
         }
     }
-    
+
     /* Sort out of lock */
     std::sort(snapshot.begin(), snapshot.end(),
         [](const std::pair<std::string, bu_plugin_cmd_impl>& a,
            const std::pair<std::string, bu_plugin_cmd_impl>& b) {
             return a.first < b.first;
         });
-    
+
     /* Iterate out of lock */
     for (const auto& pair : snapshot) {
         if (callback(pair.first.c_str(), pair.second, user_data) != 0) {
@@ -581,7 +610,7 @@ BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result)
         bu_plugin_logf(BU_LOG_ERR, "Command '%s' not found", name ? name : "(null)");
         return -1;
     }
-    
+
 #ifdef __cplusplus
     try {
 #endif
@@ -609,7 +638,7 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
         bu_plugin_logf(BU_LOG_ERR, "Invalid plugin path (null or empty)");
         return -1;
     }
-    
+
     /* Enforce path allow policy */
     bu_plugin_path_allow_cb path_allow = bu_plugin_impl::get_path_allow();
     if (path_allow && !path_allow(path)) {
@@ -626,7 +655,7 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
     }
     std::vector<wchar_t> wpath(static_cast<size_t>(wlen));
     MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath.data(), wlen);
-    
+
     /* Use LoadLibraryExW with safer flags (no DLL search path manipulation) */
     HMODULE handle = LoadLibraryExW(wpath.data(), NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
     if (!handle) {
@@ -639,10 +668,10 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
         return -1;
     }
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = reinterpret_cast<info_fn>(reinterpret_cast<void*>(GetProcAddress(handle, "bu_plugin_info")));
+    info_fn get_info = reinterpret_cast<info_fn>(reinterpret_cast<void*>(GetProcAddress(handle, BU_PLUGIN_MANIFEST_SYM)));
     if (!get_info) {
         DWORD err = GetLastError();
-        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export bu_plugin_info (Windows error %lu)", path, err);
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export %s (Windows error %lu)", path, BU_PLUGIN_MANIFEST_SYM, err);
         FreeLibrary(handle);
         return -1;
     }
@@ -653,16 +682,16 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
         bu_plugin_logf(BU_LOG_ERR, "Failed to load plugin: %s (%s)", path, err ? err : "unknown error");
         return -1;
     }
-    
+
     /* Clear dlerror before dlsym for accurate error reporting */
     dlerror();
-    
+
     typedef const bu_plugin_manifest* (*info_fn)(void);
-    info_fn get_info = reinterpret_cast<info_fn>(dlsym(handle, "bu_plugin_info"));
+    info_fn get_info = reinterpret_cast<info_fn>(dlsym(handle, BU_PLUGIN_MANIFEST_SYM));
     const char *sym_err = dlerror();
     if (sym_err || !get_info) {
-        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export bu_plugin_info (%s)", 
-                       path, sym_err ? sym_err : "symbol not found");
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s does not export %s (%s)",
+                       path, BU_PLUGIN_MANIFEST_SYM, sym_err ? sym_err : "symbol not found");
         dlclose(handle);
         return -1;
     }
@@ -681,7 +710,7 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
 
     /* Validate manifest ABI version and struct_size */
     if (manifest->abi_version != BU_PLUGIN_ABI_VERSION) {
-        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible ABI version %u (expected %u)", 
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible ABI version %u (expected %u)",
                        path, manifest->abi_version, BU_PLUGIN_ABI_VERSION);
 #if defined(_WIN32)
         FreeLibrary(handle);
@@ -690,9 +719,9 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
 #endif
         return -1;
     }
-    
+
     if (manifest->struct_size < sizeof(bu_plugin_manifest)) {
-        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible manifest struct_size %zu (expected >= %zu)", 
+        bu_plugin_logf(BU_LOG_ERR, "Plugin %s has incompatible manifest struct_size %zu (expected >= %zu)",
                        path, manifest->struct_size, sizeof(bu_plugin_manifest));
 #if defined(_WIN32)
         FreeLibrary(handle);
@@ -706,6 +735,11 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
     if (!manifest->commands || manifest->cmd_count == 0) {
         bu_plugin_logf(BU_LOG_INFO, "Plugin %s has no commands", path);
         /* Not an error, just nothing to register */
+#if defined(_WIN32)
+        bu_plugin_impl::get_modules().push_back(handle);
+#else
+        bu_plugin_impl::get_modules().push_back(handle);
+#endif
         return 0;
     }
 
@@ -716,7 +750,7 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
         if (cmd->name) {
             std::string trimmed = bu_plugin_impl::trim_whitespace(cmd->name);
             if (!trimmed.empty() && manifest_names.find(trimmed) != manifest_names.end()) {
-                bu_plugin_logf(BU_LOG_WARN, "Plugin %s has duplicate command name '%s' in manifest", 
+                bu_plugin_logf(BU_LOG_WARN, "Plugin %s has duplicate command name '%s' in manifest",
                                path, trimmed.c_str());
             }
             manifest_names.insert(trimmed);
@@ -735,7 +769,34 @@ BU_PLUGIN_API int bu_plugin_load(const char *path) {
         }
     }
 
+    /* Retain module handle for lifetime */
+#if defined(_WIN32)
+    bu_plugin_impl::get_modules().push_back(handle);
+#else
+    bu_plugin_impl::get_modules().push_back(handle);
+#endif
+
     return registered;
+}
+
+/* Count retained modules */
+BU_PLUGIN_API size_t bu_plugin_loaded_modules_count(void) {
+    return bu_plugin_impl::get_modules().size();
+}
+
+/* Optional shutdown: unload modules in reverse order and clear registry */
+BU_PLUGIN_API void bu_plugin_shutdown(void) {
+    auto &mods = bu_plugin_impl::get_modules();
+    for (auto it = mods.rbegin(); it != mods.rend(); ++it) {
+#if defined(_WIN32)
+        if (*it) FreeLibrary(*it);
+#else
+        if (*it) dlclose(*it);
+#endif
+    }
+    mods.clear();
+    std::lock_guard<std::mutex> lock(bu_plugin_impl::get_mutex());
+    bu_plugin_impl::get_registry().clear();
 }
 
 } /* extern "C" */
