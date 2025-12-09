@@ -429,7 +429,9 @@ static bool test_all_plugins_collision_protection(const char* plugin_dir) {
     
     printf("  Initial state: %zu commands, %zu loaded modules\n", count_before, modules_before);
     
-    /* Define all available plugins */
+    /* Define all available plugins.
+     * NOTE: This list must be kept in sync with actual plugins in the repository.
+     * If plugins are added, removed, or modified, update this list accordingly. */
     struct PluginInfo {
         const char* subdir;
         const char* name;
@@ -451,7 +453,6 @@ static bool test_all_plugins_collision_protection(const char* plugin_dir) {
     
     /* Load all plugins sequentially */
     int total_commands_registered = 0;
-    std::vector<std::string> loaded_plugins;
     
     for (const auto& plugin : plugins) {
         std::string path = get_plugin_path(plugin_dir, plugin.subdir, plugin.name);
@@ -462,7 +463,6 @@ static bool test_all_plugins_collision_protection(const char* plugin_dir) {
         
         printf("    -> Registered %d command(s)\n", result);
         total_commands_registered += result;
-        loaded_plugins.push_back(path);
     }
     
     size_t count_after = bu_plugin_cmd_count();
@@ -514,8 +514,14 @@ static bool test_all_plugins_collision_protection(const char* plugin_dir) {
     TEST_ASSERT(bu_plugin_cmd_exists("c_only_hello") == 1, "Command 'c_only_hello' should exist");
     printf("    ✓ c_only_hello (from c_only plugin)\n");
     
-    /* From special names plugin */
-    TEST_ASSERT(bu_plugin_cmd_exists("this_is_a_very_long_command_name_that_tests_buffer_handling_and_memory_allocation_for_extremely_long_identifiers_that_might_cause_issues_in_some_implementations") == 1,
+    /* From special names plugin.
+     * NOTE: This long command name should match the one defined in special_names_plugin.cpp.
+     * If the plugin's command name changes, this test must be updated. */
+    const char* long_cmd_name = 
+        "this_is_a_very_long_command_name_that_tests_buffer_handling_"
+        "and_memory_allocation_for_extremely_long_identifiers_that_"
+        "might_cause_issues_in_some_implementations";
+    TEST_ASSERT(bu_plugin_cmd_exists(long_cmd_name) == 1,
         "Long command name should exist");
     printf("    ✓ this_is_a_very_long_command_name... (from special_names plugin)\n");
     
