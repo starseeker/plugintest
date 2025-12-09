@@ -420,6 +420,133 @@ static bool test_c_only_plugin(const char* plugin_dir) {
     TEST_PASS();
 }
 
+/* Test: Load all plugins simultaneously to stress collision protections */
+static bool test_all_plugins_collision_protection(const char* plugin_dir) {
+    TEST_START("All Plugins Simultaneous Load (Collision Protection Stress Test)");
+    
+    size_t count_before = bu_plugin_cmd_count();
+    size_t modules_before = bu_plugin_loaded_modules_count();
+    
+    printf("  Initial state: %zu commands, %zu loaded modules\n", count_before, modules_before);
+    
+    /* Define all available plugins */
+    struct PluginInfo {
+        const char* subdir;
+        const char* name;
+        int expected_min_cmds;  /* Minimum expected commands (may be 0 for empty plugins) */
+    };
+    
+    std::vector<PluginInfo> plugins = {
+        {"plugin/example", "bu-example-plugin", 1},
+        {"plugin/math_plugin", "bu-math-plugin", 3},
+        {"plugin/string_plugin", "bu-string-plugin", 2},
+        {"plugin/duplicate_plugin", "bu-duplicate-plugin", 1},
+        {"plugin/stress_plugin", "bu-stress-plugin", 50},
+        {"plugin/large_plugin", "bu-large-plugin", 500},
+        {"plugin/c_only", "bu-c-only-plugin", 2},
+        {"plugin/edge_cases", "bu-empty-plugin", 0},
+        {"plugin/edge_cases", "bu-null-impl-plugin", 1},
+        {"plugin/edge_cases", "bu-special-names-plugin", 4}
+    };
+    
+    /* Load all plugins sequentially */
+    int total_commands_registered = 0;
+    std::vector<std::string> loaded_plugins;
+    
+    for (const auto& plugin : plugins) {
+        std::string path = get_plugin_path(plugin_dir, plugin.subdir, plugin.name);
+        printf("  Loading: %s\n", path.c_str());
+        
+        int result = bu_plugin_load(path.c_str());
+        TEST_ASSERT(result >= 0, "Plugin should load successfully without symbol collision");
+        
+        printf("    -> Registered %d command(s)\n", result);
+        total_commands_registered += result;
+        loaded_plugins.push_back(path);
+    }
+    
+    size_t count_after = bu_plugin_cmd_count();
+    size_t modules_after = bu_plugin_loaded_modules_count();
+    
+    printf("\n  Final state: %zu commands, %zu loaded modules\n", count_after, modules_after);
+    printf("  Total commands registered from all plugins: %d\n", total_commands_registered);
+    
+    /* Verify module handles were retained */
+    TEST_ASSERT(modules_after > modules_before, 
+        "Module count should increase (handles retained)");
+    TEST_ASSERT_EQUAL(modules_before + plugins.size(), modules_after,
+        "All plugin modules should be retained");
+    
+    /* Note: Command count may not increase if plugins were already loaded in previous tests.
+       This is expected behavior due to "first wins" duplicate handling policy.
+       The key collision protection test is that all plugins load successfully without
+       symbol collisions, and module handles are properly retained. */
+    printf("  Note: Commands may already be registered from previous tests (first wins policy)\n");
+    
+    /* Verify specific commands from different plugins are accessible */
+    printf("\n  Verifying commands from different plugins are accessible:\n");
+    
+    /* From example plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("example") == 1, "Command 'example' should exist");
+    printf("    ✓ example (from example plugin)\n");
+    
+    /* From math plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("math_add") == 1, "Command 'math_add' should exist");
+    TEST_ASSERT(bu_plugin_cmd_exists("math_multiply") == 1, "Command 'math_multiply' should exist");
+    printf("    ✓ math_add, math_multiply (from math plugin)\n");
+    
+    /* From string plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("string_length") == 1, "Command 'string_length' should exist");
+    TEST_ASSERT(bu_plugin_cmd_exists("string_upper") == 1, "Command 'string_upper' should exist");
+    printf("    ✓ string_length, string_upper (from string plugin)\n");
+    
+    /* From stress plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("stress_0") == 1, "Command 'stress_0' should exist");
+    TEST_ASSERT(bu_plugin_cmd_exists("stress_49") == 1, "Command 'stress_49' should exist");
+    printf("    ✓ stress_0, stress_49 (from stress plugin)\n");
+    
+    /* From large plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("large_0") == 1, "Command 'large_0' should exist");
+    TEST_ASSERT(bu_plugin_cmd_exists("large_499") == 1, "Command 'large_499' should exist");
+    printf("    ✓ large_0, large_499 (from large plugin)\n");
+    
+    /* From c_only plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("c_only_hello") == 1, "Command 'c_only_hello' should exist");
+    printf("    ✓ c_only_hello (from c_only plugin)\n");
+    
+    /* From special names plugin */
+    TEST_ASSERT(bu_plugin_cmd_exists("this_is_a_very_long_command_name_that_tests_buffer_handling_and_memory_allocation_for_extremely_long_identifiers_that_might_cause_issues_in_some_implementations") == 1,
+        "Long command name should exist");
+    printf("    ✓ this_is_a_very_long_command_name... (from special_names plugin)\n");
+    
+    /* Execute a few commands to verify they work correctly */
+    printf("\n  Executing sample commands to verify functionality:\n");
+    
+    bu_plugin_cmd_impl example_fn = bu_plugin_cmd_get("example");
+    TEST_ASSERT(example_fn != nullptr, "Should be able to get 'example' command");
+    int example_result = example_fn();
+    TEST_ASSERT_EQUAL(42, example_result, "'example' should return 42");
+    printf("    ✓ example() returned 42\n");
+    
+    bu_plugin_cmd_impl add_fn = bu_plugin_cmd_get("math_add");
+    TEST_ASSERT(add_fn != nullptr, "Should be able to get 'math_add' command");
+    int add_result = add_fn();
+    TEST_ASSERT_EQUAL(5, add_result, "'math_add' should return 5");
+    printf("    ✓ math_add() returned 5\n");
+    
+    bu_plugin_cmd_impl stress_fn = bu_plugin_cmd_get("stress_25");
+    TEST_ASSERT(stress_fn != nullptr, "Should be able to get 'stress_25' command");
+    int stress_result = stress_fn();
+    TEST_ASSERT_EQUAL(25, stress_result, "'stress_25' should return 25");
+    printf("    ✓ stress_25() returned 25\n");
+    
+    printf("\n  ✓ All %zu plugins loaded successfully without symbol collisions!\n", plugins.size());
+    printf("  ✓ Module handles properly retained (%zu modules)\n", modules_after);
+    printf("  ✓ All commands accessible and functional\n");
+    
+    TEST_PASS();
+}
+
 /* Test: Invalid plugin paths */
 static bool test_invalid_paths() {
     TEST_START("Invalid Plugin Paths");
@@ -636,6 +763,7 @@ int main(int argc, char* argv[]) {
     test_stress(plugin_dir);
     test_scalability(plugin_dir);
     test_c_only_plugin(plugin_dir);
+    test_all_plugins_collision_protection(plugin_dir);
     
     /* Print summary */
     printf("\n========================================\n");
