@@ -37,7 +37,7 @@ extern "C" {
 #  define BU_PLUGIN_IMPORT __declspec(dllimport)
 #  define BU_PLUGIN_LOCAL
 #else
-#  if defined(__GNUC__) && __GNUC__ >= 4
+#  if (defined(__GNUC__) && __GNUC__ >= 4) || defined(__clang__)
 #    define BU_PLUGIN_EXPORT __attribute__ ((visibility ("default")))
 #    define BU_PLUGIN_IMPORT __attribute__ ((visibility ("default")))
 #    define BU_PLUGIN_LOCAL  __attribute__ ((visibility ("hidden")))
