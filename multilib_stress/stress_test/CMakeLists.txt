@@ -5,9 +5,7 @@ add_executable(multilib_stress_test
 )
 
 # Link against dl on Unix systems for dynamic loading
-if(WIN32)
-    target_link_libraries(multilib_stress_test PRIVATE)
-else()
+if(NOT WIN32)
     target_link_libraries(multilib_stress_test PRIVATE dl)
 endif()
 

@@ -12,8 +12,6 @@ target_compile_definitions(rt_plugin_host PRIVATE
 
 target_include_directories(rt_plugin_host PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
-if(WIN32)
-    target_link_libraries(rt_plugin_host PRIVATE)
-else()
+if(NOT WIN32)
     target_link_libraries(rt_plugin_host PRIVATE dl)
 endif()
