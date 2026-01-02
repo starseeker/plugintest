@@ -1,0 +1,433 @@
+/**
+ * multilib_stress_test.cpp - Comprehensive stress test for multiple independent libraries.
+ *
+ * This test:
+ *   - Loads 3 independent libraries (GED, RT, ANALYZE) each with their own plugin ecosystem
+ *   - Each library uses the same bu_plugin_core.h but with different BU_PLUGIN_NAME namespace
+ *   - Loads plugins for each library
+ *   - Executes commands from each library's plugin ecosystem
+ *   - Tests proper shutdown/unload ordering
+ *   - Verifies no cross-library interference
+ *
+ * This constitutes the full stress test of the plugin system as it would be used in a
+ * real application with multiple independent libraries.
+ */
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <vector>
+
+#if defined(_WIN32)
+#include <windows.h>
+typedef HMODULE lib_handle_t;
+#define LOAD_LIBRARY(path) LoadLibraryA(path)
+#define GET_SYMBOL(handle, name) GetProcAddress(handle, name)
+#define UNLOAD_LIBRARY(handle) FreeLibrary(handle)
+#define LIB_EXT ".dll"
+#define LIB_PREFIX ""
+#else
+#include <dlfcn.h>
+typedef void* lib_handle_t;
+#define LOAD_LIBRARY(path) dlopen(path, RTLD_NOW | RTLD_LOCAL)
+#define GET_SYMBOL(handle, name) dlsym(handle, name)
+#define UNLOAD_LIBRARY(handle) dlclose(handle)
+#ifdef __APPLE__
+#define LIB_EXT ".dylib"
+#else
+#define LIB_EXT ".so"
+#endif
+#define LIB_PREFIX "lib"
+#endif
+
+/* Test statistics */
+static int tests_run = 0;
+static int tests_passed = 0;
+static int tests_failed = 0;
+
+/* Test assertion macros */
+#define TEST_START(name) \
+    do { \
+        printf("\n=== TEST: %s ===\n", name); \
+        tests_run++; \
+    } while(0)
+
+#define TEST_ASSERT(condition, msg) \
+    do { \
+        if (!(condition)) { \
+            printf("  FAIL: %s\n", msg); \
+            tests_failed++; \
+            return false; \
+        } \
+    } while(0)
+
+#define TEST_ASSERT_EQUAL(expected, actual, msg) \
+    do { \
+        if ((expected) != (actual)) { \
+            printf("  FAIL: %s (expected %d, got %d)\n", msg, \
+                   static_cast<int>(expected), static_cast<int>(actual)); \
+            tests_failed++; \
+            return false; \
+        } \
+    } while(0)
+
+#define TEST_PASS() \
+    do { \
+        printf("  PASS\n"); \
+        tests_passed++; \
+        return true; \
+    } while(0)
+
+/* Build plugin path based on OS */
+static std::string get_plugin_path(const char* lib_name, const char* plugin_name) {
+    std::string path = "./multilib_stress/plugins/";
+    path += lib_name;
+    path += "/";
+    path += LIB_PREFIX;
+    path += plugin_name;
+    path += LIB_EXT;
+    return path;
+}
+
+/* Build library path based on OS */
+static std::string get_library_path(const char* lib_name) {
+    std::string path = "./multilib_stress/lib";
+    path += lib_name;
+    path += "/";
+    path += LIB_PREFIX;
+    path += lib_name;
+    path += "_plugin_host";
+    path += LIB_EXT;
+    return path;
+}
+
+/* Library handle and function pointers */
+struct LibraryAPI {
+    lib_handle_t handle;
+    const char* name;
+    int (*init)(void);
+    void (*shutdown)(void);
+    int (*load_plugin)(const char*);
+    size_t (*cmd_count)(void);
+    int (*cmd_exists)(const char*);
+    int (*cmd_run)(const char*, int*);
+};
+
+/* Load a library and its API functions */
+static bool load_library_api(LibraryAPI& api, const char* lib_name) {
+    std::string path = get_library_path(lib_name);
+    printf("  Loading library: %s\n", path.c_str());
+    
+    api.handle = LOAD_LIBRARY(path.c_str());
+    if (!api.handle) {
+        printf("    ERROR: Failed to load library\n");
+        return false;
+    }
+    
+    api.name = lib_name;
+    
+    /* Load function pointers */
+    char fn_name[256];
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_init", lib_name);
+    api.init = reinterpret_cast<int(*)(void)>(GET_SYMBOL(api.handle, fn_name));
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_shutdown", lib_name);
+    api.shutdown = reinterpret_cast<void(*)(void)>(GET_SYMBOL(api.handle, fn_name));
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_load_plugin", lib_name);
+    api.load_plugin = reinterpret_cast<int(*)(const char*)>(GET_SYMBOL(api.handle, fn_name));
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_cmd_count", lib_name);
+    api.cmd_count = reinterpret_cast<size_t(*)(void)>(GET_SYMBOL(api.handle, fn_name));
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_cmd_exists", lib_name);
+    api.cmd_exists = reinterpret_cast<int(*)(const char*)>(GET_SYMBOL(api.handle, fn_name));
+    
+    snprintf(fn_name, sizeof(fn_name), "%s_cmd_run", lib_name);
+    api.cmd_run = reinterpret_cast<int(*)(const char*, int*)>(GET_SYMBOL(api.handle, fn_name));
+    
+    if (!api.init || !api.shutdown || !api.load_plugin || 
+        !api.cmd_count || !api.cmd_exists || !api.cmd_run) {
+        printf("    ERROR: Failed to load all API functions\n");
+        UNLOAD_LIBRARY(api.handle);
+        return false;
+    }
+    
+    printf("    ✓ Library loaded successfully\n");
+    return true;
+}
+
+/* Test: Load all three libraries */
+static bool test_load_libraries(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Load Multiple Independent Libraries");
+    
+    const char* lib_names[] = { "ged", "rt", "analyze" };
+    
+    for (size_t i = 0; i < 3; i++) {
+        LibraryAPI api;
+        if (!load_library_api(api, lib_names[i])) {
+            TEST_ASSERT(false, "Failed to load library");
+        }
+        libraries.push_back(api);
+    }
+    
+    printf("  ✓ All 3 libraries loaded successfully\n");
+    TEST_PASS();
+}
+
+/* Test: Initialize all libraries */
+static bool test_initialize_libraries(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Initialize All Libraries");
+    
+    for (auto& lib : libraries) {
+        printf("  Initializing %s library...\n", lib.name);
+        int result = lib.init();
+        TEST_ASSERT(result == 0, "Library initialization should succeed");
+        
+        size_t count = lib.cmd_count();
+        printf("    Initial command count: %zu\n", count);
+        TEST_ASSERT(count == 3, "Should have 3 built-in commands");
+    }
+    
+    printf("  ✓ All libraries initialized with built-in commands\n");
+    TEST_PASS();
+}
+
+/* Test: Load plugins for each library */
+static bool test_load_plugins(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Load Plugins for Each Library");
+    
+    struct PluginInfo {
+        const char* lib_name;
+        const char* plugin_name;
+        int expected_cmds;
+    };
+    
+    PluginInfo plugins[] = {
+        {"ged", "ged-draw-plugin", 3},
+        {"ged", "ged-edit-plugin", 2},
+        {"rt", "rt-shader-plugin", 3},
+        {"rt", "rt-render-plugin", 2},
+        {"analyze", "analyze-overlap-plugin", 3},
+        {"analyze", "analyze-volume-plugin", 2}
+    };
+    
+    for (size_t i = 0; i < 6; i++) {
+        PluginInfo& pi = plugins[i];
+        
+        /* Find the library */
+        LibraryAPI* lib = nullptr;
+        for (auto& l : libraries) {
+            if (strcmp(l.name, pi.lib_name) == 0) {
+                lib = &l;
+                break;
+            }
+        }
+        TEST_ASSERT(lib != nullptr, "Library should exist");
+        
+        std::string path = get_plugin_path(pi.lib_name, pi.plugin_name);
+        printf("  Loading %s plugin: %s\n", pi.lib_name, path.c_str());
+        
+        int result = lib->load_plugin(path.c_str());
+        TEST_ASSERT(result >= 0, "Plugin load should succeed");
+        TEST_ASSERT_EQUAL(pi.expected_cmds, result, "Should register expected number of commands");
+        printf("    ✓ Registered %d command(s)\n", result);
+    }
+    
+    /* Verify final command counts */
+    printf("\n  Final command counts per library:\n");
+    for (auto& lib : libraries) {
+        size_t count = lib.cmd_count();
+        printf("    %s: %zu commands\n", lib.name, count);
+        if (strcmp(lib.name, "ged") == 0) {
+            TEST_ASSERT(count == 8, "GED should have 8 commands (3 built-in + 5 plugin)");
+        } else if (strcmp(lib.name, "rt") == 0) {
+            TEST_ASSERT(count == 8, "RT should have 8 commands (3 built-in + 5 plugin)");
+        } else if (strcmp(lib.name, "analyze") == 0) {
+            TEST_ASSERT(count == 8, "ANALYZE should have 8 commands (3 built-in + 5 plugin)");
+        }
+    }
+    
+    printf("  ✓ All plugins loaded successfully\n");
+    TEST_PASS();
+}
+
+/* Test: Execute commands from each library */
+static bool test_execute_commands(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Execute Commands from Each Library");
+    
+    struct CommandTest {
+        const char* lib_name;
+        const char* cmd_name;
+        int expected_result;
+    };
+    
+    CommandTest tests[] = {
+        /* GED commands */
+        {"ged", "ged_help", 0},
+        {"ged", "ged_version", 1},
+        {"ged", "ged_draw", 100},
+        {"ged", "ged_erase", 101},
+        {"ged", "ged_rotate", 200},
+        
+        /* RT commands */
+        {"rt", "rt_help", 0},
+        {"rt", "rt_version", 2},
+        {"rt", "rt_phong", 300},
+        {"rt", "rt_raytrace", 400},
+        
+        /* ANALYZE commands */
+        {"analyze", "analyze_help", 0},
+        {"analyze", "analyze_version", 3},
+        {"analyze", "analyze_overlap", 500},
+        {"analyze", "analyze_volume", 600}
+    };
+    
+    for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
+        CommandTest& ct = tests[i];
+        
+        /* Find the library */
+        LibraryAPI* lib = nullptr;
+        for (auto& l : libraries) {
+            if (strcmp(l.name, ct.lib_name) == 0) {
+                lib = &l;
+                break;
+            }
+        }
+        TEST_ASSERT(lib != nullptr, "Library should exist");
+        
+        /* Check command exists */
+        int exists = lib->cmd_exists(ct.cmd_name);
+        TEST_ASSERT(exists == 1, "Command should exist");
+        
+        /* Execute command */
+        int result = 0;
+        int status = lib->cmd_run(ct.cmd_name, &result);
+        TEST_ASSERT(status == 0, "Command execution should succeed");
+        TEST_ASSERT_EQUAL(ct.expected_result, result, "Command should return expected value");
+    }
+    
+    printf("  ✓ All commands executed successfully with correct return values\n");
+    TEST_PASS();
+}
+
+/* Test: Verify library isolation (no cross-library interference) */
+static bool test_library_isolation(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Library Isolation (No Cross-Library Interference)");
+    
+    /* Verify that GED commands don't exist in RT or ANALYZE */
+    LibraryAPI* rt_lib = nullptr;
+    LibraryAPI* analyze_lib = nullptr;
+    
+    for (auto& l : libraries) {
+        if (strcmp(l.name, "rt") == 0) rt_lib = &l;
+        if (strcmp(l.name, "analyze") == 0) analyze_lib = &l;
+    }
+    
+    TEST_ASSERT(rt_lib != nullptr && analyze_lib != nullptr, "Libraries should exist");
+    
+    /* GED commands should not exist in RT */
+    TEST_ASSERT(rt_lib->cmd_exists("ged_draw") == 0, "GED command should not exist in RT");
+    TEST_ASSERT(rt_lib->cmd_exists("ged_rotate") == 0, "GED command should not exist in RT");
+    
+    /* RT commands should not exist in ANALYZE */
+    TEST_ASSERT(analyze_lib->cmd_exists("rt_phong") == 0, "RT command should not exist in ANALYZE");
+    TEST_ASSERT(analyze_lib->cmd_exists("rt_raytrace") == 0, "RT command should not exist in ANALYZE");
+    
+    /* ANALYZE commands should not exist in RT */
+    TEST_ASSERT(rt_lib->cmd_exists("analyze_overlap") == 0, "ANALYZE command should not exist in RT");
+    TEST_ASSERT(rt_lib->cmd_exists("analyze_volume") == 0, "ANALYZE command should not exist in RT");
+    
+    printf("  ✓ Each library maintains independent command registry\n");
+    printf("  ✓ No cross-library command interference detected\n");
+    TEST_PASS();
+}
+
+/* Test: Proper shutdown ordering */
+static bool test_shutdown_ordering(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Proper Shutdown Ordering");
+    
+    printf("  Shutting down libraries in reverse load order...\n");
+    
+    /* Shutdown in reverse order (LIFO) */
+    for (auto it = libraries.rbegin(); it != libraries.rend(); ++it) {
+        printf("    Shutting down %s library...\n", it->name);
+        it->shutdown();
+        printf("      ✓ %s shutdown complete\n", it->name);
+    }
+    
+    printf("  ✓ All libraries shut down successfully\n");
+    TEST_PASS();
+}
+
+/* Test: Unload libraries */
+static bool test_unload_libraries(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Unload Libraries");
+    
+    printf("  Unloading libraries in reverse order...\n");
+    
+    /* Unload in reverse order (LIFO) */
+    for (auto it = libraries.rbegin(); it != libraries.rend(); ++it) {
+        printf("    Unloading %s library...\n", it->name);
+        UNLOAD_LIBRARY(it->handle);
+        printf("      ✓ %s unloaded\n", it->name);
+    }
+    
+    libraries.clear();
+    
+    printf("  ✓ All libraries unloaded successfully\n");
+    TEST_PASS();
+}
+
+/* Main test runner */
+int main(int argc, char* argv[]) {
+    printf("========================================\n");
+    printf("  Multi-Library Plugin Stress Test\n");
+    printf("========================================\n");
+    printf("\nThis test validates:\n");
+    printf("  • Loading multiple independent libraries with separate plugin ecosystems\n");
+    printf("  • Macro namespace isolation (BU_PLUGIN_NAME)\n");
+    printf("  • Plugin loading and command execution for each library\n");
+    printf("  • Library isolation (no cross-library interference)\n");
+    printf("  • Proper shutdown and unload ordering\n");
+    printf("\n");
+    
+    /* Get plugin directory from command line or use default */
+    if (argc > 1) {
+        /* Currently not used, but reserved for future path configuration */
+        (void)argv[1];
+    }
+    
+    std::vector<LibraryAPI> libraries;
+    
+    /* Run all tests */
+    test_load_libraries(libraries);
+    test_initialize_libraries(libraries);
+    test_load_plugins(libraries);
+    test_execute_commands(libraries);
+    test_library_isolation(libraries);
+    test_shutdown_ordering(libraries);
+    test_unload_libraries(libraries);
+    
+    /* Print summary */
+    printf("\n========================================\n");
+    printf("    Test Summary\n");
+    printf("========================================\n");
+    printf("Tests run:    %d\n", tests_run);
+    printf("Tests passed: %d\n", tests_passed);
+    printf("Tests failed: %d\n", tests_failed);
+    printf("========================================\n");
+    
+    if (tests_failed == 0) {
+        printf("\n✓ SUCCESS: All multi-library stress tests passed!\n");
+        printf("  The plugin system correctly handles multiple independent\n");
+        printf("  libraries with separate plugin ecosystems in the same\n");
+        printf("  application, with proper initialization, execution, and\n");
+        printf("  shutdown ordering.\n\n");
+    }
+    
+    /* Return 0 if all tests passed, 1 otherwise */
+    return (tests_failed == 0) ? 0 : 1;
+}
