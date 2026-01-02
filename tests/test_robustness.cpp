@@ -355,20 +355,18 @@ static bool test_buffered_logging() {
 }
 
 /**
- * Test: ABI Validation
- * Verify that plugins with mismatched abi_version or struct_size are rejected.
- * Note: This test is limited because we can't easily create mock plugins at runtime.
- * The ABI validation is tested implicitly by the successful loading of updated plugins.
+ * Test: ABI Validation - Correct Version
+ * Verify that plugins with correct abi_version and struct_size load successfully.
  */
-static bool test_abi_validation(const char* plugin_dir) {
-    TEST_START("ABI Validation");
+static bool test_abi_validation_correct(const char* plugin_dir) {
+    TEST_START("ABI Validation - Correct Version");
     
     /* Reset path allow policy for this test */
     bu_plugin_set_path_allow(nullptr);
     
     /* Load a valid plugin to verify ABI fields are being checked */
     std::string path = get_plugin_path(plugin_dir, "plugin/c_only", "bu-c-only-plugin");
-    printf("  Loading C-only plugin with ABI fields: %s\n", path.c_str());
+    printf("  Loading C-only plugin with correct ABI fields: %s\n", path.c_str());
     
     /* Check that the plugin loads successfully (it has correct ABI version) */
     /* Note: Commands may already be registered from previous test runs */
@@ -376,9 +374,76 @@ static bool test_abi_validation(const char* plugin_dir) {
     TEST_ASSERT(result >= 0 || log_contains(BU_LOG_WARN, "Duplicate"), 
                 "Plugin with correct ABI version should load (or commands already exist)");
     
-    printf("  ABI validation is implicitly tested by plugin loading\n");
-    printf("  Full ABI mismatch testing would require mock plugins\n");
+    TEST_PASS();
+}
+
+/**
+ * Test: ABI Validation - Incorrect ABI Version
+ * Verify that plugins with mismatched abi_version are rejected.
+ */
+static bool test_abi_validation_bad_version(const char* plugin_dir) {
+    TEST_START("ABI Validation - Incorrect ABI Version");
     
+    bu_plugin_set_path_allow(nullptr);
+    clear_logs();
+    
+    /* Try to load plugin with wrong ABI version */
+    std::string path = get_plugin_path(plugin_dir, "plugin/test_bad_abi", "bu-bad-abi-plugin");
+    printf("  Attempting to load plugin with incorrect ABI version: %s\n", path.c_str());
+    
+    int result = bu_plugin_load(path.c_str());
+    TEST_ASSERT(result < 0, "Plugin with incorrect ABI version should fail to load");
+    TEST_ASSERT(log_contains(BU_LOG_ERR, "incompatible ABI version"),
+                "Should log error about incompatible ABI version");
+    
+    printf("  Plugin correctly rejected due to ABI version mismatch\n");
+    TEST_PASS();
+}
+
+/**
+ * Test: ABI Validation - Incorrect Struct Size
+ * Verify that plugins with too-small struct_size are rejected.
+ */
+static bool test_abi_validation_bad_struct_size(const char* plugin_dir) {
+    TEST_START("ABI Validation - Incorrect Struct Size");
+    
+    bu_plugin_set_path_allow(nullptr);
+    clear_logs();
+    
+    /* Try to load plugin with too-small struct_size */
+    std::string path = get_plugin_path(plugin_dir, "plugin/test_bad_struct_size", "bu-bad-struct-plugin");
+    printf("  Attempting to load plugin with incorrect struct_size: %s\n", path.c_str());
+    
+    int result = bu_plugin_load(path.c_str());
+    TEST_ASSERT(result < 0, "Plugin with too-small struct_size should fail to load");
+    TEST_ASSERT(log_contains(BU_LOG_ERR, "incompatible manifest struct_size"),
+                "Should log error about incompatible struct_size");
+    
+    printf("  Plugin correctly rejected due to struct_size mismatch\n");
+    TEST_PASS();
+}
+
+/**
+ * Test: Missing bu_plugin_info Symbol
+ * Verify that libraries lacking the required symbol are rejected with clear error.
+ */
+static bool test_missing_plugin_info(const char* plugin_dir) {
+    TEST_START("Missing bu_plugin_info Symbol");
+    
+    bu_plugin_set_path_allow(nullptr);
+    clear_logs();
+    
+    /* Try to load library without bu_plugin_info symbol */
+    std::string path = get_plugin_path(plugin_dir, "plugin/test_no_manifest", "bu-no-manifest-plugin");
+    printf("  Attempting to load library without bu_plugin_info: %s\n", path.c_str());
+    
+    int result = bu_plugin_load(path.c_str());
+    TEST_ASSERT(result < 0, "Library without bu_plugin_info should fail to load");
+    TEST_ASSERT(log_contains(BU_LOG_ERR, "does not export") ||
+                log_contains(BU_LOG_ERR, "symbol not found"),
+                "Should log error about missing symbol");
+    
+    printf("  Library correctly rejected due to missing bu_plugin_info symbol\n");
     TEST_PASS();
 }
 
@@ -530,7 +595,10 @@ int main(int argc, char* argv[]) {
     test_cmd_run_throwing();
     test_buffered_logging();
     test_path_allow_policy(plugin_dir);
-    test_abi_validation(plugin_dir);
+    test_abi_validation_correct(plugin_dir);
+    test_abi_validation_bad_version(plugin_dir);
+    test_abi_validation_bad_struct_size(plugin_dir);
+    test_missing_plugin_info(plugin_dir);
     test_manifest_duplicate_detection(plugin_dir);
     test_invalid_paths_logging();
     test_concurrency_foreach();

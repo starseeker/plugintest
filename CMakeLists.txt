@@ -114,5 +114,10 @@ add_subdirectory(plugin/large_plugin)
 add_subdirectory(plugin/edge_cases)
 add_subdirectory(plugin/c_only)
 
+# Test-only plugins for ABI validation
+add_subdirectory(plugin/test_bad_abi)
+add_subdirectory(plugin/test_bad_struct_size)
+add_subdirectory(plugin/test_no_manifest)
+
 # Tests
 add_subdirectory(tests)
