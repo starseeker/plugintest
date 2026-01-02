@@ -12,4 +12,8 @@ endif()
 target_include_directories(multilib_stress_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Add as a test
-add_test(NAME multilib_stress_test COMMAND multilib_stress_test)
+add_test(
+    NAME multilib_stress_test 
+    COMMAND multilib_stress_test
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
