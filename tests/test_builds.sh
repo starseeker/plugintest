@@ -39,21 +39,21 @@ run_config() {
             echo -e "${YELLOW}Running tests for: $name${NC}"
             if ./tests/test_harness .; then
                 echo -e "${GREEN}PASSED: $name${NC}"
-                ((PASSED++))
+                PASSED=$((PASSED + 1))
                 CONFIGS+=("$name: PASS")
             else
                 echo -e "${RED}FAILED (tests): $name${NC}"
-                ((FAILED++))
+                FAILED=$((FAILED + 1))
                 CONFIGS+=("$name: FAIL (tests)")
             fi
         else
             echo -e "${RED}FAILED (build): $name${NC}"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
             CONFIGS+=("$name: FAIL (build)")
         fi
     else
         echo -e "${RED}FAILED (cmake): $name${NC}"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         CONFIGS+=("$name: FAIL (cmake)")
     fi
     
