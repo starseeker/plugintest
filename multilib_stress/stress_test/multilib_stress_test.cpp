@@ -41,6 +41,9 @@ typedef void* lib_handle_t;
 #define LIB_PREFIX "lib"
 #endif
 
+/* Define the command implementation function pointer type */
+typedef int (*bu_plugin_cmd_impl)(void);
+
 /* Test statistics */
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -112,6 +115,7 @@ struct LibraryAPI {
     size_t (*cmd_count)(void);
     int (*cmd_exists)(const char*);
     int (*cmd_run)(const char*, int*);
+    bu_plugin_cmd_impl (*cmd_get)(const char*);
 };
 
 /* Load a library and its API functions */
@@ -148,8 +152,11 @@ static bool load_library_api(LibraryAPI& api, const char* lib_name) {
     snprintf(fn_name, sizeof(fn_name), "%s_cmd_run", lib_name);
     api.cmd_run = reinterpret_cast<int(*)(const char*, int*)>(GET_SYMBOL(api.handle, fn_name));
     
+    snprintf(fn_name, sizeof(fn_name), "%s_cmd_get", lib_name);
+    api.cmd_get = reinterpret_cast<bu_plugin_cmd_impl(*)(const char*)>(GET_SYMBOL(api.handle, fn_name));
+    
     if (!api.init || !api.shutdown || !api.load_plugin || 
-        !api.cmd_count || !api.cmd_exists || !api.cmd_run) {
+        !api.cmd_count || !api.cmd_exists || !api.cmd_run || !api.cmd_get) {
         printf("    ERROR: Failed to load all API functions\n");
         UNLOAD_LIBRARY(api.handle);
         return false;
@@ -188,7 +195,7 @@ static bool test_initialize_libraries(std::vector<LibraryAPI>& libraries) {
         
         size_t count = lib.cmd_count();
         printf("    Initial command count: %zu\n", count);
-        TEST_ASSERT(count == 3, "Should have 3 built-in commands");
+        TEST_ASSERT(count == 5, "Should have 5 built-in commands (including colliding names)");
     }
     
     printf("  ✓ All libraries initialized with built-in commands\n");
@@ -242,11 +249,11 @@ static bool test_load_plugins(std::vector<LibraryAPI>& libraries) {
         size_t count = lib.cmd_count();
         printf("    %s: %zu commands\n", lib.name, count);
         if (strcmp(lib.name, "testplugins1") == 0) {
-            TEST_ASSERT(count == 8, "TestPlugins1 should have 8 commands (3 built-in + 5 plugin)");
+            TEST_ASSERT(count == 10, "TestPlugins1 should have 10 commands (5 built-in + 5 plugin)");
         } else if (strcmp(lib.name, "testplugins2") == 0) {
-            TEST_ASSERT(count == 8, "TestPlugins2 should have 8 commands (3 built-in + 5 plugin)");
+            TEST_ASSERT(count == 10, "TestPlugins2 should have 10 commands (5 built-in + 5 plugin)");
         } else if (strcmp(lib.name, "testplugins3") == 0) {
-            TEST_ASSERT(count == 8, "TestPlugins3 should have 8 commands (3 built-in + 5 plugin)");
+            TEST_ASSERT(count == 10, "TestPlugins3 should have 10 commands (5 built-in + 5 plugin)");
         }
     }
     
@@ -345,6 +352,65 @@ static bool test_library_isolation(std::vector<LibraryAPI>& libraries) {
     TEST_PASS();
 }
 
+/* Test: Command name collision isolation */
+static bool test_command_name_collisions(std::vector<LibraryAPI>& libraries) {
+    TEST_START("Command Name Collision Isolation");
+    
+    printf("  Testing that libraries with colliding command names get their own implementations...\n\n");
+    
+    /* Test colliding command "test_common" - should exist in all libraries with different return values */
+    printf("  Testing 'test_common' command (exists in all 3 libraries):\n");
+    for (auto& lib : libraries) {
+        int exists = lib.cmd_exists("test_common");
+        TEST_ASSERT(exists == 1, "Command 'test_common' should exist in each library");
+        
+        bu_plugin_cmd_impl fn = lib.cmd_get("test_common");
+        TEST_ASSERT(fn != nullptr, "Should be able to get 'test_common' command");
+        
+        int result = fn();
+        
+        /* Verify each library gets its own implementation */
+        if (strcmp(lib.name, "testplugins1") == 0) {
+            TEST_ASSERT(result == 1001, "testplugins1 'test_common' should return 1001");
+            printf("    ✓ testplugins1: test_common returned %d (correct)\n", result);
+        } else if (strcmp(lib.name, "testplugins2") == 0) {
+            TEST_ASSERT(result == 1002, "testplugins2 'test_common' should return 1002");
+            printf("    ✓ testplugins2: test_common returned %d (correct)\n", result);
+        } else if (strcmp(lib.name, "testplugins3") == 0) {
+            TEST_ASSERT(result == 1003, "testplugins3 'test_common' should return 1003");
+            printf("    ✓ testplugins3: test_common returned %d (correct)\n", result);
+        }
+    }
+    
+    /* Test colliding command "draw" - should exist in all libraries with different return values */
+    printf("\n  Testing 'draw' command (exists in all 3 libraries):\n");
+    for (auto& lib : libraries) {
+        int exists = lib.cmd_exists("draw");
+        TEST_ASSERT(exists == 1, "Command 'draw' should exist in each library");
+        
+        bu_plugin_cmd_impl fn = lib.cmd_get("draw");
+        TEST_ASSERT(fn != nullptr, "Should be able to get 'draw' command");
+        
+        int result = fn();
+        
+        /* Verify each library gets its own implementation */
+        if (strcmp(lib.name, "testplugins1") == 0) {
+            TEST_ASSERT(result == 2001, "testplugins1 'draw' should return 2001");
+            printf("    ✓ testplugins1: draw returned %d (correct)\n", result);
+        } else if (strcmp(lib.name, "testplugins2") == 0) {
+            TEST_ASSERT(result == 2002, "testplugins2 'draw' should return 2002");
+            printf("    ✓ testplugins2: draw returned %d (correct)\n", result);
+        } else if (strcmp(lib.name, "testplugins3") == 0) {
+            TEST_ASSERT(result == 2003, "testplugins3 'draw' should return 2003");
+            printf("    ✓ testplugins3: draw returned %d (correct)\n", result);
+        }
+    }
+    
+    printf("\n  ✓ Command name collisions properly isolated across libraries\n");
+    printf("  ✓ Each library gets its own correct implementation despite name collisions\n");
+    TEST_PASS();
+}
+
 /* Test: Proper shutdown ordering */
 static bool test_shutdown_ordering(std::vector<LibraryAPI>& libraries) {
     TEST_START("Proper Shutdown Ordering");
@@ -408,6 +474,7 @@ int main(int argc, char* argv[]) {
     test_load_plugins(libraries);
     test_execute_commands(libraries);
     test_library_isolation(libraries);
+    test_command_name_collisions(libraries);
     test_shutdown_ordering(libraries);
     test_unload_libraries(libraries);
     

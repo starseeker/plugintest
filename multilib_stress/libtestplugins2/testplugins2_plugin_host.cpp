@@ -65,6 +65,15 @@ extern "C" BU_PLUGIN_EXPORT int testplugins2_cmd_exists(const char *name) {
 }
 
 /**
+ * testplugins2_cmd_get - Get a testplugins2 command implementation.
+ * @param name Command name.
+ * @return Command function pointer, or NULL if not found.
+ */
+extern "C" BU_PLUGIN_EXPORT bu_plugin_cmd_impl testplugins2_cmd_get(const char *name) {
+    return bu_plugin_cmd_get(name);
+}
+
+/**
  * testplugins2_cmd_run - Execute a testplugins2 command by name.
  * @param name Command name.
  * @param result Output parameter for command result (can be NULL).
@@ -93,3 +102,18 @@ static int tp2_status(void) {
     return static_cast<int>(count);
 }
 REGISTER_BU_PLUGIN_COMMAND("tp2_status", tp2_status);
+
+/* Colliding command name - same name across all libraries */
+static int tp2_common(void) {
+    printf("TestPlugins2: common command from library 2\n");
+    return 1002;
+}
+REGISTER_BU_PLUGIN_COMMAND("test_common", tp2_common);
+
+/* Another colliding command */
+static int tp2_draw_builtin(void) {
+    printf("TestPlugins2: draw command (built-in)\n");
+    return 2002;
+}
+REGISTER_BU_PLUGIN_COMMAND("draw", tp2_draw_builtin);
+
