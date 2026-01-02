@@ -1,5 +1,5 @@
 /**
- * analyze_volume_plugin.cpp - ANALYZE plugin for volume analysis.
+ * tp3_volume_plugin.cpp - TestPlugins3 plugin for volume analysis.
  */
 
 #include <cstdio>
@@ -8,27 +8,27 @@
 #define BU_PLUGIN_BUILDING_DLL
 #endif
 #ifndef BU_PLUGIN_NAME
-#define BU_PLUGIN_NAME analyze
+#define BU_PLUGIN_NAME testplugins3
 #endif
 #include "bu_plugin.h"
 
-static int analyze_volume(void) {
-    printf("ANALYZE Plugin: volume analysis executed\n");
+static int tp3_volume(void) {
+    printf("TestPlugins3 Plugin: volume analysis executed\n");
     return 600;
 }
 
-static int analyze_surface(void) {
-    printf("ANALYZE Plugin: surface analysis executed\n");
+static int tp3_surface(void) {
+    printf("TestPlugins3 Plugin: surface analysis executed\n");
     return 601;
 }
 
 static bu_plugin_cmd s_commands[] = {
-    { "analyze_volume", analyze_volume },
-    { "analyze_surface", analyze_surface }
+    { "tp3_volume", tp3_volume },
+    { "tp3_surface", tp3_surface }
 };
 
 static bu_plugin_manifest s_manifest = {
-    "analyze-volume-plugin",
+    "tp3-volume-plugin",
     1,
     2,
     s_commands,

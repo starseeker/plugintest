@@ -1,7 +1,7 @@
 # Multi-library stress test build configuration
 #
 # This builds:
-#   - Three independent libraries (libged, librt, libanalyze) each with own plugin system
+#   - Three independent libraries (libtestplugins1, libtestplugins2, libtestplugins3) each with own plugin system
 #   - Plugins for each library (2 plugins per library)
 #   - A comprehensive stress test executable
 #
@@ -12,14 +12,14 @@
 #   - Proper initialization and shutdown ordering
 
 # Build the three independent libraries
-add_subdirectory(libged)
-add_subdirectory(librt)
-add_subdirectory(libanalyze)
+add_subdirectory(libtestplugins1)
+add_subdirectory(libtestplugins2)
+add_subdirectory(libtestplugins3)
 
 # Build plugins for each library
-add_subdirectory(plugins/ged)
-add_subdirectory(plugins/rt)
-add_subdirectory(plugins/analyze)
+add_subdirectory(plugins/testplugins1)
+add_subdirectory(plugins/testplugins2)
+add_subdirectory(plugins/testplugins3)
 
 # Build the stress test executable
 add_subdirectory(stress_test)

@@ -64,8 +64,8 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 ### Multi-Library Stress Test
 
 - `multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
-  - **Three independent libraries**: `libged`, `librt`, `libanalyze` - each with its own plugin system
-  - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`ged`, `rt`, `analyze`)
+  - **Three independent libraries**: `libtestplugins1`, `libtestplugins2`, `libtestplugins3` - each with its own plugin system
+  - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`testplugins1`, `testplugins2`, `testplugins3`)
   - **Independent plugin ecosystems**: Each library has 2 plugins with multiple commands
   - **Library isolation testing**: Verifies no cross-library command interference
   - **Proper shutdown ordering**: Tests LIFO (Last In, First Out) unload ordering

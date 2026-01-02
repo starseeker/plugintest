@@ -4,7 +4,7 @@ This directory contains a comprehensive stress test that validates the plugin sy
 
 ## Overview
 
-This test simulates a real-world scenario where an application uses multiple independent libraries (like `libged`, `librt`, and `libanalyze` in BRL-CAD), each with its own plugin ecosystem, all running in the same process.
+This test simulates a real-world scenario where an application uses multiple independent libraries (like `libtestplugins1`, `libtestplugins2`, and `libtestplugins3` in BRL-CAD), each with its own plugin ecosystem, all running in the same process.
 
 ## Architecture
 
@@ -12,18 +12,18 @@ This test simulates a real-world scenario where an application uses multiple ind
 
 Three independent libraries are created, each with its own plugin system:
 
-1. **libged** (Geometry Editing Library)
-   - Namespace: `ged`
+1. **libtestplugins1** (Test Library 1 Library)
+   - Namespace: `testplugins1`
    - Built-in commands: `ged_help`, `ged_version`, `ged_status`
    - Plugins: `ged-draw-plugin`, `ged-edit-plugin`
 
-2. **librt** (Ray Tracing Library)
-   - Namespace: `rt`
+2. **libtestplugins2** (Test Library 2 Library)
+   - Namespace: `testplugins2`
    - Built-in commands: `rt_help`, `rt_version`, `rt_status`
    - Plugins: `rt-shader-plugin`, `rt-render-plugin`
 
-3. **libanalyze** (Analysis Library)
-   - Namespace: `analyze`
+3. **libtestplugins3** (Test Library 3 Library)
+   - Namespace: `testplugins3`
    - Built-in commands: `analyze_help`, `analyze_version`, `analyze_status`
    - Plugins: `analyze-overlap-plugin`, `analyze-volume-plugin`
 
@@ -33,20 +33,20 @@ Three independent libraries are created, each with its own plugin system:
 
 Each library is compiled with a different `BU_PLUGIN_NAME` macro value:
 ```cpp
-// libged
+// libtestplugins1
 #define BU_PLUGIN_NAME ged
 
-// librt
+// libtestplugins2
 #define BU_PLUGIN_NAME rt
 
-// libanalyze
+// libtestplugins3
 #define BU_PLUGIN_NAME analyze
 ```
 
 This ensures that plugin manifests are exported with library-specific symbol names:
-- `ged_plugin_info()` for GED plugins
-- `rt_plugin_info()` for RT plugins
-- `analyze_plugin_info()` for ANALYZE plugins
+- `ged_plugin_info()` for TestPlugins1 plugins
+- `rt_plugin_info()` for TestPlugins2 plugins
+- `analyze_plugin_info()` for TestPlugins3 plugins
 
 #### 2. Independent Plugin Registries
 
@@ -76,14 +76,14 @@ The test executes commands from all libraries and verifies:
 #### 6. Library Isolation
 
 Critical test: Verifies that commands from one library do not leak into another:
-- GED commands (`ged_draw`, `ged_rotate`) do not exist in RT or ANALYZE
-- RT commands (`rt_phong`, `rt_raytrace`) do not exist in GED or ANALYZE
-- ANALYZE commands (`analyze_overlap`, `analyze_volume`) do not exist in GED or RT
+- TestPlugins1 commands (`ged_draw`, `ged_rotate`) do not exist in TestPlugins2 or TestPlugins3
+- TestPlugins2 commands (`rt_phong`, `rt_raytrace`) do not exist in TestPlugins1 or TestPlugins3
+- TestPlugins3 commands (`analyze_overlap`, `analyze_volume`) do not exist in TestPlugins1 or RT
 
 #### 7. Shutdown Ordering
 
 The test verifies proper LIFO (Last In, First Out) shutdown ordering:
-1. Shutdown libraries in reverse load order (ANALYZE → RT → GED)
+1. Shutdown libraries in reverse load order (TestPlugins3 → TestPlugins2 → TestPlugins1)
 2. Unload libraries in reverse order
 3. Verify clean shutdown with no crashes or memory leaks
 
@@ -123,25 +123,25 @@ Tests failed: 0
 multilib_stress/
 ├── CMakeLists.txt                          # Main build configuration
 ├── README.md                               # This file
-├── libged/                                 # GED library
+├── libtestplugins1/                                 # TestPlugins1 library
 │   ├── CMakeLists.txt
 │   └── ged_plugin_host.cpp
-├── librt/                                  # RT library
+├── libtestplugins2/                                  # TestPlugins2 library
 │   ├── CMakeLists.txt
 │   └── rt_plugin_host.cpp
-├── libanalyze/                             # ANALYZE library
+├── libtestplugins3/                             # TestPlugins3 library
 │   ├── CMakeLists.txt
 │   └── analyze_plugin_host.cpp
 ├── plugins/
-│   ├── ged/                                # GED plugins
+│   ├── ged/                                # TestPlugins1 plugins
 │   │   ├── CMakeLists.txt
 │   │   ├── ged_draw_plugin.cpp
 │   │   └── ged_edit_plugin.cpp
-│   ├── rt/                                 # RT plugins
+│   ├── rt/                                 # TestPlugins2 plugins
 │   │   ├── CMakeLists.txt
 │   │   ├── rt_shader_plugin.cpp
 │   │   └── rt_render_plugin.cpp
-│   └── analyze/                            # ANALYZE plugins
+│   └── analyze/                            # TestPlugins3 plugins
 │       ├── CMakeLists.txt
 │       ├── analyze_overlap_plugin.cpp
 │       └── analyze_volume_plugin.cpp
@@ -173,21 +173,21 @@ Each library follows this pattern:
 3. **Register built-in commands**: Use `REGISTER_BU_PLUGIN_COMMAND` for built-ins
 4. **Provide init/shutdown**: Initialize and cleanup the plugin system
 
-Example from `ged_plugin_host.cpp`:
+Example from `testplugins1_plugin_host.cpp`:
 ```cpp
-#define BU_PLUGIN_NAME ged
+#define BU_PLUGIN_NAME testplugins1
 #define BU_PLUGIN_IMPLEMENTATION
 #include "bu_plugin.h"
 
-extern "C" BU_PLUGIN_EXPORT int ged_init(void) {
+extern "C" BU_PLUGIN_EXPORT int testplugins1_init(void) {
     return bu_plugin_init();
 }
 
-static int ged_help(void) {
-    printf("GED: Built-in help command\n");
+static int tp1_help(void) {
+    printf("TestPlugins1: Built-in help command\n");
     return 0;
 }
-REGISTER_BU_PLUGIN_COMMAND("ged_help", ged_help);
+REGISTER_BU_PLUGIN_COMMAND("tp1_help", tp1_help);
 ```
 
 ### Plugin Implementation Pattern
@@ -199,22 +199,22 @@ Each plugin follows this pattern:
 3. **Create manifest**: Define commands array and manifest structure
 4. **Export manifest**: Use `BU_PLUGIN_DECLARE_MANIFEST` macro
 
-Example from `ged_draw_plugin.cpp`:
+Example from `tp1_draw_plugin.cpp`:
 ```cpp
-#define BU_PLUGIN_NAME ged
+#define BU_PLUGIN_NAME testplugins1
 #include "bu_plugin.h"
 
-static int ged_draw(void) {
-    printf("GED Plugin: draw command executed\n");
+static int tp1_draw(void) {
+    printf("TestPlugins1 Plugin: draw command executed\n");
     return 100;
 }
 
 static bu_plugin_cmd s_commands[] = {
-    { "ged_draw", ged_draw }
+    { "tp1_draw", tp1_draw }
 };
 
 static bu_plugin_manifest s_manifest = {
-    "ged-draw-plugin",
+    "tp1-draw-plugin",
     1,
     1,
     s_commands,

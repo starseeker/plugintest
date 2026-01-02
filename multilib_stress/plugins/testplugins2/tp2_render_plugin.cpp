@@ -1,5 +1,5 @@
 /**
- * rt_render_plugin.cpp - RT plugin for rendering commands.
+ * tp2_render_plugin.cpp - TestPlugins2 plugin for rendering commands.
  */
 
 #include <cstdio>
@@ -8,27 +8,27 @@
 #define BU_PLUGIN_BUILDING_DLL
 #endif
 #ifndef BU_PLUGIN_NAME
-#define BU_PLUGIN_NAME rt
+#define BU_PLUGIN_NAME testplugins2
 #endif
 #include "bu_plugin.h"
 
-static int rt_raytrace(void) {
-    printf("RT Plugin: raytrace command executed\n");
+static int tp2_raytrace(void) {
+    printf("TestPlugins2 Plugin: raytrace command executed\n");
     return 400;
 }
 
-static int rt_preview(void) {
-    printf("RT Plugin: preview command executed\n");
+static int tp2_preview(void) {
+    printf("TestPlugins2 Plugin: preview command executed\n");
     return 401;
 }
 
 static bu_plugin_cmd s_commands[] = {
-    { "rt_raytrace", rt_raytrace },
-    { "rt_preview", rt_preview }
+    { "tp2_raytrace", tp2_raytrace },
+    { "tp2_preview", tp2_preview }
 };
 
 static bu_plugin_manifest s_manifest = {
-    "rt-render-plugin",
+    "tp2-render-plugin",
     1,
     2,
     s_commands,

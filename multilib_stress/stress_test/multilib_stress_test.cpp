@@ -2,7 +2,7 @@
  * multilib_stress_test.cpp - Comprehensive stress test for multiple independent libraries.
  *
  * This test:
- *   - Loads 3 independent libraries (GED, RT, ANALYZE) each with their own plugin ecosystem
+ *   - Loads 3 independent libraries (TestPlugins1, TestPlugins2, TestPlugins3) each with their own plugin ecosystem
  *   - Each library uses the same bu_plugin_core.h but with different BU_PLUGIN_NAME namespace
  *   - Loads plugins for each library
  *   - Executes commands from each library's plugin ecosystem
@@ -163,7 +163,7 @@ static bool load_library_api(LibraryAPI& api, const char* lib_name) {
 static bool test_load_libraries(std::vector<LibraryAPI>& libraries) {
     TEST_START("Load Multiple Independent Libraries");
     
-    const char* lib_names[] = { "ged", "rt", "analyze" };
+    const char* lib_names[] = { "testplugins1", "testplugins2", "testplugins3" };
     
     for (size_t i = 0; i < 3; i++) {
         LibraryAPI api;
@@ -206,12 +206,12 @@ static bool test_load_plugins(std::vector<LibraryAPI>& libraries) {
     };
     
     PluginInfo plugins[] = {
-        {"ged", "ged-draw-plugin", 3},
-        {"ged", "ged-edit-plugin", 2},
-        {"rt", "rt-shader-plugin", 3},
-        {"rt", "rt-render-plugin", 2},
-        {"analyze", "analyze-overlap-plugin", 3},
-        {"analyze", "analyze-volume-plugin", 2}
+        {"testplugins1", "tp1-draw-plugin", 3},
+        {"testplugins1", "tp1-edit-plugin", 2},
+        {"testplugins2", "tp2-shader-plugin", 3},
+        {"testplugins2", "tp2-render-plugin", 2},
+        {"testplugins3", "tp3-overlap-plugin", 3},
+        {"testplugins3", "tp3-volume-plugin", 2}
     };
     
     for (size_t i = 0; i < 6; i++) {
@@ -241,12 +241,12 @@ static bool test_load_plugins(std::vector<LibraryAPI>& libraries) {
     for (auto& lib : libraries) {
         size_t count = lib.cmd_count();
         printf("    %s: %zu commands\n", lib.name, count);
-        if (strcmp(lib.name, "ged") == 0) {
-            TEST_ASSERT(count == 8, "GED should have 8 commands (3 built-in + 5 plugin)");
-        } else if (strcmp(lib.name, "rt") == 0) {
-            TEST_ASSERT(count == 8, "RT should have 8 commands (3 built-in + 5 plugin)");
-        } else if (strcmp(lib.name, "analyze") == 0) {
-            TEST_ASSERT(count == 8, "ANALYZE should have 8 commands (3 built-in + 5 plugin)");
+        if (strcmp(lib.name, "testplugins1") == 0) {
+            TEST_ASSERT(count == 8, "TestPlugins1 should have 8 commands (3 built-in + 5 plugin)");
+        } else if (strcmp(lib.name, "testplugins2") == 0) {
+            TEST_ASSERT(count == 8, "TestPlugins2 should have 8 commands (3 built-in + 5 plugin)");
+        } else if (strcmp(lib.name, "testplugins3") == 0) {
+            TEST_ASSERT(count == 8, "TestPlugins3 should have 8 commands (3 built-in + 5 plugin)");
         }
     }
     
@@ -265,24 +265,24 @@ static bool test_execute_commands(std::vector<LibraryAPI>& libraries) {
     };
     
     CommandTest tests[] = {
-        /* GED commands */
-        {"ged", "ged_help", 0},
-        {"ged", "ged_version", 1},
-        {"ged", "ged_draw", 100},
-        {"ged", "ged_erase", 101},
-        {"ged", "ged_rotate", 200},
+        /* TestPlugins1 commands */
+        {"testplugins1", "tp1_help", 0},
+        {"testplugins1", "tp1_version", 1},
+        {"testplugins1", "tp1_draw", 100},
+        {"testplugins1", "tp1_erase", 101},
+        {"testplugins1", "tp1_rotate", 200},
         
-        /* RT commands */
-        {"rt", "rt_help", 0},
-        {"rt", "rt_version", 2},
-        {"rt", "rt_phong", 300},
-        {"rt", "rt_raytrace", 400},
+        /* TestPlugins2 commands */
+        {"testplugins2", "tp2_help", 0},
+        {"testplugins2", "tp2_version", 2},
+        {"testplugins2", "tp2_phong", 300},
+        {"testplugins2", "tp2_raytrace", 400},
         
-        /* ANALYZE commands */
-        {"analyze", "analyze_help", 0},
-        {"analyze", "analyze_version", 3},
-        {"analyze", "analyze_overlap", 500},
-        {"analyze", "analyze_volume", 600}
+        /* TestPlugins3 commands */
+        {"testplugins3", "tp3_help", 0},
+        {"testplugins3", "tp3_version", 3},
+        {"testplugins3", "tp3_overlap", 500},
+        {"testplugins3", "tp3_volume", 600}
     };
     
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
@@ -317,28 +317,28 @@ static bool test_execute_commands(std::vector<LibraryAPI>& libraries) {
 static bool test_library_isolation(std::vector<LibraryAPI>& libraries) {
     TEST_START("Library Isolation (No Cross-Library Interference)");
     
-    /* Verify that GED commands don't exist in RT or ANALYZE */
-    LibraryAPI* rt_lib = nullptr;
-    LibraryAPI* analyze_lib = nullptr;
+    /* Verify that TestPlugins1 commands don't exist in TestPlugins2 or TestPlugins3 */
+    LibraryAPI* tp2_lib = nullptr;
+    LibraryAPI* tp3_lib = nullptr;
     
     for (auto& l : libraries) {
-        if (strcmp(l.name, "rt") == 0) rt_lib = &l;
-        if (strcmp(l.name, "analyze") == 0) analyze_lib = &l;
+        if (strcmp(l.name, "testplugins2") == 0) tp2_lib = &l;
+        if (strcmp(l.name, "testplugins3") == 0) tp3_lib = &l;
     }
     
-    TEST_ASSERT(rt_lib != nullptr && analyze_lib != nullptr, "Libraries should exist");
+    TEST_ASSERT(tp2_lib != nullptr && tp3_lib != nullptr, "Libraries should exist");
     
-    /* GED commands should not exist in RT */
-    TEST_ASSERT(rt_lib->cmd_exists("ged_draw") == 0, "GED command should not exist in RT");
-    TEST_ASSERT(rt_lib->cmd_exists("ged_rotate") == 0, "GED command should not exist in RT");
+    /* TestPlugins1 commands should not exist in TestPlugins2 */
+    TEST_ASSERT(tp2_lib->cmd_exists("tp1_draw") == 0, "TestPlugins1 command should not exist in TestPlugins2");
+    TEST_ASSERT(tp2_lib->cmd_exists("tp1_rotate") == 0, "TestPlugins1 command should not exist in TestPlugins2");
     
-    /* RT commands should not exist in ANALYZE */
-    TEST_ASSERT(analyze_lib->cmd_exists("rt_phong") == 0, "RT command should not exist in ANALYZE");
-    TEST_ASSERT(analyze_lib->cmd_exists("rt_raytrace") == 0, "RT command should not exist in ANALYZE");
+    /* TestPlugins2 commands should not exist in TestPlugins3 */
+    TEST_ASSERT(tp3_lib->cmd_exists("tp2_phong") == 0, "TestPlugins2 command should not exist in TestPlugins3");
+    TEST_ASSERT(tp3_lib->cmd_exists("tp2_raytrace") == 0, "TestPlugins2 command should not exist in TestPlugins3");
     
-    /* ANALYZE commands should not exist in RT */
-    TEST_ASSERT(rt_lib->cmd_exists("analyze_overlap") == 0, "ANALYZE command should not exist in RT");
-    TEST_ASSERT(rt_lib->cmd_exists("analyze_volume") == 0, "ANALYZE command should not exist in RT");
+    /* TestPlugins3 commands should not exist in TestPlugins2 */
+    TEST_ASSERT(tp2_lib->cmd_exists("tp3_overlap") == 0, "TestPlugins3 command should not exist in TestPlugins2");
+    TEST_ASSERT(tp2_lib->cmd_exists("tp3_volume") == 0, "TestPlugins3 command should not exist in TestPlugins2");
     
     printf("  ✓ Each library maintains independent command registry\n");
     printf("  ✓ No cross-library command interference detected\n");

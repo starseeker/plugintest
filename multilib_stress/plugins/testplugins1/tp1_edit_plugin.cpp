@@ -1,5 +1,5 @@
 /**
- * ged_edit_plugin.cpp - GED plugin for editing commands.
+ * tp1_edit_plugin.cpp - TestPlugins1 plugin for editing commands.
  */
 
 #include <cstdio>
@@ -8,27 +8,27 @@
 #define BU_PLUGIN_BUILDING_DLL
 #endif
 #ifndef BU_PLUGIN_NAME
-#define BU_PLUGIN_NAME ged
+#define BU_PLUGIN_NAME testplugins1
 #endif
 #include "bu_plugin.h"
 
-static int ged_rotate(void) {
-    printf("GED Plugin: rotate command executed\n");
+static int tp1_rotate(void) {
+    printf("TestPlugins1 Plugin: rotate command executed\n");
     return 200;
 }
 
-static int ged_translate(void) {
-    printf("GED Plugin: translate command executed\n");
+static int tp1_translate(void) {
+    printf("TestPlugins1 Plugin: translate command executed\n");
     return 201;
 }
 
 static bu_plugin_cmd s_commands[] = {
-    { "ged_rotate", ged_rotate },
-    { "ged_translate", ged_translate }
+    { "tp1_rotate", tp1_rotate },
+    { "tp1_translate", tp1_translate }
 };
 
 static bu_plugin_manifest s_manifest = {
-    "ged-edit-plugin",
+    "tp1-edit-plugin",
     1,
     2,
     s_commands,
