@@ -32,3 +32,6 @@ add_test(NAME robustness_tests
     COMMAND test_robustness ${CMAKE_BINARY_DIR} $<CONFIG>
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
+
+# Alternative signature test
+add_subdirectory(alt_signature)
