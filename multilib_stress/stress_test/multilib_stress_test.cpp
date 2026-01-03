@@ -44,6 +44,9 @@ typedef void* lib_handle_t;
 /* Define the command implementation function pointer type */
 typedef int (*bu_plugin_cmd_impl)(void);
 
+/* Build configuration (for multi-config generators like Visual Studio) */
+static std::string g_build_config;
+
 /* Test statistics */
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -87,6 +90,15 @@ static std::string get_plugin_path(const char* lib_name, const char* plugin_name
     std::string path = "./multilib_stress/plugins/";
     path += lib_name;
     path += "/";
+    
+#if defined(_WIN32) && defined(_MSC_VER)
+    /* For MSVC multi-config builds, add the configuration subdirectory */
+    if (!g_build_config.empty()) {
+        path += g_build_config;
+        path += "/";
+    }
+#endif
+    
     path += LIB_PREFIX;
     path += plugin_name;
     path += LIB_EXT;
@@ -98,6 +110,15 @@ static std::string get_library_path(const char* lib_name) {
     std::string path = "./multilib_stress/lib";
     path += lib_name;
     path += "/";
+    
+#if defined(_WIN32) && defined(_MSC_VER)
+    /* For MSVC multi-config builds, add the configuration subdirectory */
+    if (!g_build_config.empty()) {
+        path += g_build_config;
+        path += "/";
+    }
+#endif
+    
     path += LIB_PREFIX;
     path += lib_name;
     path += "_plugin_host";
@@ -460,10 +481,10 @@ int main(int argc, char* argv[]) {
     printf("  • Proper shutdown and unload ordering\n");
     printf("\n");
     
-    /* Get plugin directory from command line or use default */
+    /* Get build configuration from command line (for multi-config generators) */
     if (argc > 1) {
-        /* Currently not used, but reserved for future path configuration */
-        (void)argv[1];
+        g_build_config = argv[1];
+        printf("Build configuration: %s\n\n", g_build_config.c_str());
     }
     
     std::vector<LibraryAPI> libraries;
