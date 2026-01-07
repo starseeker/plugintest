@@ -9,6 +9,7 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 - Multiple dynamic plugins exporting manifest-arrays via `bu_plugin_info` that list commands to register at load.
 - A small executable (`run_bu_plugin`) that loads a plugin, registers commands via the manifest, and runs one.
 - A comprehensive test harness (`test_harness`) that stress-tests the plugin system.
+- **NEW**: A multi-library stress test (`multilib_stress_test`) that validates multiple independent libraries with their own plugin ecosystems running simultaneously in the same application.
 
 ## Structure
 
@@ -60,6 +61,18 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - RelWithDebInfo and MinSizeRel
   - AddressSanitizer builds
 
+### Multi-Library Stress Test
+
+- `multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
+  - **Three independent libraries**: `libtestplugins1`, `libtestplugins2`, `libtestplugins3` - each with its own plugin system
+  - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`testplugins1`, `testplugins2`, `testplugins3`)
+  - **Independent plugin ecosystems**: Each library has 2 plugins with multiple commands
+  - **Library isolation testing**: Verifies no cross-library command interference
+  - **Proper shutdown ordering**: Tests LIFO (Last In, First Out) unload ordering
+  - **Macro define testing**: Validates `BU_PLUGIN_NAME` macro correctly namespaces symbols
+  
+  This test represents the full stress scenario encountered in real applications where multiple independent libraries with their own plugins interact in the same executable.
+
 ## How to build & run
 
 ### Basic Build
@@ -104,6 +117,32 @@ run_bu_plugin.exe plugin\example\bu-example-plugin.dll
 
 ```bash
 ./tests/test_harness .
+```
+
+### Run the multi-library stress test
+
+This test validates multiple independent libraries with separate plugin ecosystems running in the same application:
+
+```bash
+./multilib_stress/stress_test/multilib_stress_test
+```
+
+Expected output:
+```
+========================================
+  Multi-Library Plugin Stress Test
+========================================
+...
+Tests run:    7
+Tests passed: 7
+Tests failed: 0
+========================================
+
+✓ SUCCESS: All multi-library stress tests passed!
+  The plugin system correctly handles multiple independent
+  libraries with separate plugin ecosystems in the same
+  application, with proper initialization, execution, and
+  shutdown ordering.
 ```
 
 ### Run all build configuration tests

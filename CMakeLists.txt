@@ -121,3 +121,6 @@ add_subdirectory(plugin/test_no_manifest)
 
 # Tests
 add_subdirectory(tests)
+
+# Multi-library stress test (tests multiple independent libraries with separate plugin ecosystems)
+add_subdirectory(multilib_stress)
