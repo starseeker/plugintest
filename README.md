@@ -42,9 +42,10 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 
 ### Test Framework
 
-All testing infrastructure is organized under the `tests/` directory:
+All testing infrastructure is organized under the `tests/` directory and provides comprehensive coverage of both the `plugin/` and `host/` directory components:
 
-- `tests/test_harness.cpp`: Comprehensive test harness that tests:
+**Core Test Executables:**
+- `tests/test_harness.cpp`: Comprehensive test harness that tests all plugins from `plugin/` directory:
   - Initial state verification
   - Built-in command functionality
   - Null API parameter handling
@@ -56,13 +57,34 @@ All testing infrastructure is organized under the `tests/` directory:
   - Null implementations
   - Special command names (very long names, underscores, numbers, mixed case)
   - Stress testing with 50 commands
+  - Scalability testing with 500 commands
   - C-only plugins (pure C without C++)
+  - Collision protection with all plugins loaded simultaneously
+  
 - `tests/test_robustness.cpp`: Thread-safety and robustness testing
+
+**Host Executable Tests:**
+- CTest integration tests for `run_bu_plugin` (from `host/exec.cpp`) with all plugins:
+  - Example plugin test
+  - Math plugin test
+  - String plugin test
+  - C-only plugin test
+  - Stress plugin test (50 commands)
+  - Large plugin test (500 commands)
+  - Duplicate plugin test
+  - Empty plugin test
+  - Null implementation test
+  - Special names plugin test
+  - No plugin test (baseline)
+
+**Build and Configuration Tests:**
 - `tests/test_builds.sh`: Script to test various build configurations:
   - Release and Debug builds
   - Strict warning configurations
   - RelWithDebInfo and MinSizeRel
   - AddressSanitizer builds
+
+**Specialized Tests:**
 - `tests/alt_signature/`: Alternative function signature testing
 - `tests/plugins/`: Test-specific plugins for ABI validation:
   - `test_bad_abi`: Plugin with wrong ABI version
@@ -77,6 +99,9 @@ All testing infrastructure is organized under the `tests/` directory:
   - **Macro define testing**: Validates `BU_PLUGIN_NAME` macro correctly namespaces symbols
   
   This test represents the full stress scenario encountered in real applications where multiple independent libraries with their own plugins interact in the same executable.
+
+**Complete Coverage:**
+The test suite ensures that all components from both `plugin/` and `host/` directories are thoroughly tested, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
 
 ## How to build & run
 
@@ -152,9 +177,31 @@ Tests failed: 0
 
 ### Run all tests via CTest
 
+The test suite provides comprehensive coverage of all plugin and host components:
+
 ```bash
 ctest --output-on-failure
 ```
+
+**Test Coverage:**
+- **`plugin_tests`**: Comprehensive test harness covering all plugins in `plugin/` directory
+- **`robustness_tests`**: Thread-safety and robustness testing
+- **`test_alt_signature`**: Alternative function signature testing
+- **`multilib_stress_test`**: Multi-library plugin ecosystem testing
+- **`run_bu_plugin_*`**: Tests for the host executable with all plugins:
+  - `run_bu_plugin_example`: Tests example plugin
+  - `run_bu_plugin_math`: Tests math plugin
+  - `run_bu_plugin_string`: Tests string plugin
+  - `run_bu_plugin_c_only`: Tests C-only plugin
+  - `run_bu_plugin_stress`: Tests stress plugin (50 commands)
+  - `run_bu_plugin_large`: Tests large plugin (500 commands)
+  - `run_bu_plugin_duplicate`: Tests duplicate command handling
+  - `run_bu_plugin_empty`: Tests empty plugin
+  - `run_bu_plugin_null_impl`: Tests null implementation handling
+  - `run_bu_plugin_special_names`: Tests special command names
+  - `run_bu_plugin_no_plugin`: Tests executable without plugin
+
+Total: 15 comprehensive tests covering all aspects of the plugin system.
 
 ### Run all build configuration tests
 

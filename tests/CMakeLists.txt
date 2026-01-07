@@ -43,3 +43,113 @@ add_subdirectory(plugins/test_no_manifest)
 
 # Multi-library stress test (tests multiple independent libraries with separate plugin ecosystems)
 add_subdirectory(multilib_stress)
+
+# Test the run_bu_plugin executable from host/ directory with various plugins
+# This ensures complete coverage of the host executable functionality
+
+# Helper function to construct plugin path based on platform
+if(WIN32 AND MSVC)
+    # MSVC multi-config builds
+    set(PLUGIN_DIR "$<TARGET_FILE_DIR:bu_plugin_host>")
+else()
+    set(PLUGIN_DIR "${CMAKE_BINARY_DIR}")
+endif()
+
+# Test run_bu_plugin with example plugin
+add_test(NAME run_bu_plugin_example
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-example-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_example PROPERTIES
+    PASS_REGULAR_EXPRESSION "Command 'example' returned: 42"
+)
+
+# Test run_bu_plugin with math plugin
+add_test(NAME run_bu_plugin_math
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-math-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_math PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 3 command\\(s\\)"
+)
+
+# Test run_bu_plugin with string plugin
+add_test(NAME run_bu_plugin_string
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-string-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_string PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 2 command\\(s\\)"
+)
+
+# Test run_bu_plugin with c_only plugin
+add_test(NAME run_bu_plugin_c_only
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-c-only-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_c_only PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 2 command\\(s\\)"
+)
+
+# Test run_bu_plugin with stress plugin
+add_test(NAME run_bu_plugin_stress
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-stress-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_stress PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 50 command\\(s\\)"
+)
+
+# Test run_bu_plugin with large plugin
+add_test(NAME run_bu_plugin_large
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-large-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_large PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 500 command\\(s\\)"
+)
+
+# Test run_bu_plugin with duplicate plugin
+add_test(NAME run_bu_plugin_duplicate
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-duplicate-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_duplicate PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered [0-9]+ command\\(s\\)"
+)
+
+# Test run_bu_plugin with empty plugin
+add_test(NAME run_bu_plugin_empty
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-empty-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_empty PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 0 command\\(s\\)"
+)
+
+# Test run_bu_plugin with null implementation plugin
+add_test(NAME run_bu_plugin_null_impl
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-null-impl-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_null_impl PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered [0-9]+ command\\(s\\)"
+)
+
+# Test run_bu_plugin with special names plugin
+add_test(NAME run_bu_plugin_special_names
+    COMMAND run_bu_plugin $<TARGET_FILE:bu-special-names-plugin>
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_special_names PROPERTIES
+    PASS_REGULAR_EXPRESSION "Registered 4 command\\(s\\)"
+)
+
+# Test run_bu_plugin without arguments (no plugin loaded)
+add_test(NAME run_bu_plugin_no_plugin
+    COMMAND run_bu_plugin
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+set_tests_properties(run_bu_plugin_no_plugin PROPERTIES
+    PASS_REGULAR_EXPRESSION "Command 'example' not registered"
+)
