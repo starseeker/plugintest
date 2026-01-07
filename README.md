@@ -50,7 +50,7 @@ All code is organized under the `tests/` directory for a clean, consolidated tes
 
 All testing infrastructure is consolidated under the `tests/` directory with a clean, minimal test set:
 
-**Core Test Executables (4 tests):**
+**Core Test Executables (5 tests):**
 
 1. **`tests/test_harness.cpp`** - Comprehensive plugin system testing
    - **Plugin Loading**: Single plugins, multiple plugins, all plugins simultaneously
@@ -79,8 +79,15 @@ All testing infrastructure is consolidated under the `tests/` directory with a c
    - **Proper shutdown ordering**: LIFO (Last In, First Out) unload ordering
    - **Real-world scenario**: Multiple libraries with plugins in the same application
 
+5. **`tests/test_builds.cmake`** - Build configuration validation
+   - Tests 8 different build configurations across all platforms
+   - CMake-based equivalent of `test_builds.sh` that can be run via CTest
+   - Validates Release, Debug, RelWithDebInfo, MinSizeRel builds
+   - Tests with strict warnings, without warnings, and with sanitizers
+
 **Build Configuration Tests:**
-- `tests/test_builds.sh`: Tests various build configurations (Release, Debug, RelWithDebInfo, MinSizeRel, AddressSanitizer)
+- `tests/test_builds.sh`: Shell script for testing various build configurations (traditional method)
+- `tests/test_builds.cmake`: CMake script for the same tests (cross-platform, CTest compatible)
 
 **Test Plugins:**
 - `tests/plugin/`: Example plugins for functional testing (example, math, string, c_only, stress, large, duplicate, edge_cases)
@@ -169,7 +176,7 @@ The test suite provides comprehensive coverage with a clean, minimal set of test
 ctest --output-on-failure
 ```
 
-**Test Coverage (4 tests):**
+**Test Coverage (5 tests):**
 - **`plugin_tests`**: Comprehensive test harness covering all plugins in `tests/plugin/` directory
   - Tests all plugins: example, math, string, c_only, stress (50 cmds), large (500 cmds), duplicate, edge_cases (empty, null_impl, special_names)
   - Validates plugin loading, command registration, execution, and edge cases
@@ -184,6 +191,12 @@ ctest --output-on-failure
   - Exception handling in command execution
   - Missing manifest symbol detection
   
+- **`build_config_tests`**: Build configuration validation across multiple configurations
+  - Tests 8 different build configurations (Release, Debug, RelWithDebInfo, MinSizeRel)
+  - Validates builds with strict warnings, without warnings, and with sanitizers
+  - Ensures the plugin system works correctly across all build types
+  - **Note**: This test takes longer as it builds the project multiple times
+  
 - **`test_alt_signature`**: Alternative function signature testing
   - Validates support for different function signatures beyond the basic `int (*)(void)`
   
@@ -195,9 +208,27 @@ This minimal test set eliminates duplication while maintaining complete coverage
 
 ### Run all build configuration tests
 
+The build configuration tests can be run in two ways:
+
+**Using the shell script (traditional method):**
 ```bash
 ./tests/test_builds.sh
 ```
+
+**Using CTest (recommended - cross-platform):**
+```bash
+# From a build directory
+cd build && ctest -R build_config_tests --output-on-failure
+
+# Or run directly with CMake
+cmake -P tests/test_builds.cmake
+```
+
+Both methods test the following configurations:
+- Release, Debug, RelWithDebInfo, MinSizeRel
+- Release/Debug with strict warnings enabled
+- Release with warnings disabled
+- Debug with sanitizers (Linux/macOS only)
 
 ## Expected output from run_bu_plugin
 
