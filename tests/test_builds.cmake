@@ -62,14 +62,33 @@ function(run_config CONFIG_NAME)
         return()
     endif()
     
-    # Run build
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} --build .
-        WORKING_DIRECTORY ${BUILD_DIR}
-        RESULT_VARIABLE BUILD_RESULT
-        OUTPUT_VARIABLE BUILD_OUTPUT
-        ERROR_VARIABLE BUILD_ERROR
-    )
+    # Extract the CMAKE_BUILD_TYPE from the arguments for multi-config generators
+    set(BUILD_TYPE "")
+    foreach(arg IN LISTS CMAKE_ARGS)
+        if(arg MATCHES "^-DCMAKE_BUILD_TYPE=(.+)$")
+            set(BUILD_TYPE "${CMAKE_MATCH_1}")
+        endif()
+    endforeach()
+    
+    # Run build - for multi-config generators (like Visual Studio), we need --config
+    if(BUILD_TYPE)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} --build . --config ${BUILD_TYPE}
+            WORKING_DIRECTORY ${BUILD_DIR}
+            RESULT_VARIABLE BUILD_RESULT
+            OUTPUT_VARIABLE BUILD_OUTPUT
+            ERROR_VARIABLE BUILD_ERROR
+        )
+    else()
+        # Fallback if no build type specified
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} --build .
+            WORKING_DIRECTORY ${BUILD_DIR}
+            RESULT_VARIABLE BUILD_RESULT
+            OUTPUT_VARIABLE BUILD_OUTPUT
+            ERROR_VARIABLE BUILD_ERROR
+        )
+    endif()
     
     if(NOT BUILD_RESULT EQUAL 0)
         message("${COLOR_RED}FAILED (build): ${CONFIG_NAME}${COLOR_RESET}")
@@ -83,20 +102,38 @@ function(run_config CONFIG_NAME)
     # Run tests
     message("${COLOR_YELLOW}Running tests for: ${CONFIG_NAME}${COLOR_RESET}")
     
-    # Determine test harness path based on platform
+    # Determine test harness path based on platform and generator type
+    # Multi-config generators (VS, Xcode) put executables in config subdirectories
     if(WIN32)
-        set(TEST_HARNESS "${BUILD_DIR}/tests/test_harness.exe")
+        # On Windows, try the config subdirectory first (for multi-config generators)
+        if(BUILD_TYPE AND EXISTS "${BUILD_DIR}/tests/${BUILD_TYPE}/test_harness.exe")
+            set(TEST_HARNESS "${BUILD_DIR}/tests/${BUILD_TYPE}/test_harness.exe")
+        else()
+            set(TEST_HARNESS "${BUILD_DIR}/tests/test_harness.exe")
+        endif()
     else()
         set(TEST_HARNESS "${BUILD_DIR}/tests/test_harness")
     endif()
     
-    execute_process(
-        COMMAND ${TEST_HARNESS} ${BUILD_DIR}
-        WORKING_DIRECTORY ${BUILD_DIR}
-        RESULT_VARIABLE TEST_RESULT
-        OUTPUT_VARIABLE TEST_OUTPUT
-        ERROR_VARIABLE TEST_ERROR
-    )
+    # Pass the build directory and configuration to test_harness
+    # (test_harness expects these arguments to locate plugins)
+    if(BUILD_TYPE)
+        execute_process(
+            COMMAND ${TEST_HARNESS} ${BUILD_DIR} ${BUILD_TYPE}
+            WORKING_DIRECTORY ${BUILD_DIR}
+            RESULT_VARIABLE TEST_RESULT
+            OUTPUT_VARIABLE TEST_OUTPUT
+            ERROR_VARIABLE TEST_ERROR
+        )
+    else()
+        execute_process(
+            COMMAND ${TEST_HARNESS} ${BUILD_DIR}
+            WORKING_DIRECTORY ${BUILD_DIR}
+            RESULT_VARIABLE TEST_RESULT
+            OUTPUT_VARIABLE TEST_OUTPUT
+            ERROR_VARIABLE TEST_ERROR
+        )
+    endif()
     
     if(NOT TEST_RESULT EQUAL 0)
         message("${COLOR_RED}FAILED (tests): ${CONFIG_NAME}${COLOR_RESET}")
