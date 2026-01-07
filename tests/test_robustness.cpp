@@ -155,7 +155,7 @@ static bool test_path_allow_policy(const char* plugin_dir) {
     bu_plugin_set_path_allow(test_path_allow);
     
     /* Try to load a plugin from outside the allowed directory */
-    std::string path = get_plugin_path(plugin_dir, "plugin/example", "bu-example-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugin/example", "bu-example-plugin");
     printf("  Attempting to load plugin from: %s\n", path.c_str());
     
     int result = bu_plugin_load(path.c_str());
@@ -365,7 +365,7 @@ static bool test_abi_validation_correct(const char* plugin_dir) {
     bu_plugin_set_path_allow(nullptr);
     
     /* Load a valid plugin to verify ABI fields are being checked */
-    std::string path = get_plugin_path(plugin_dir, "plugin/c_only", "bu-c-only-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugin/c_only", "bu-c-only-plugin");
     printf("  Loading C-only plugin with correct ABI fields: %s\n", path.c_str());
     
     /* Check that the plugin loads successfully (it has correct ABI version) */
@@ -513,7 +513,7 @@ static bool test_manifest_duplicate_detection(const char* plugin_dir) {
     clear_logs();
     
     /* Load duplicate plugin which has a command that duplicates example plugin */
-    std::string path = get_plugin_path(plugin_dir, "plugin/duplicate_plugin", "bu-duplicate-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugin/duplicate_plugin", "bu-duplicate-plugin");
     printf("  Loading duplicate plugin: %s\n", path.c_str());
     
     int result = bu_plugin_load(path.c_str());

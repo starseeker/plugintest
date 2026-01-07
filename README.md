@@ -13,6 +13,8 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 
 ## Structure
 
+All code is organized under the `tests/` directory for a clean, consolidated testing infrastructure:
+
 ### Core Components
 
 - `CMakeLists.txt`: top-level build configuration with support for various build types and compiler warning levels.
@@ -24,59 +26,68 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - Built-in registry implementation (C++ only) guarded by `BU_PLUGIN_IMPLEMENTATION`
   - Dynamic plugin manifest helpers (`bu_plugin_manifest`, `BU_PLUGIN_DECLARE_MANIFEST`, validation and registration helpers)
 - `include/bu_plugin.h`: wrapper including `bu_plugin_core.h` for the test host, with minimal function signature `int (*)(void)`
-- `host/libbu_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
-- `host/exec.cpp`: test runner executable that optionally loads a plugin from the command line, reports registry size, and runs the "example" command.
 
-### Plugins
+### Host Components (tests/host/)
 
-- `plugin/example/`: A trivial plugin implementing one command named "example"
-- `plugin/math_plugin/`: Plugin with multiple math commands (add, multiply, square)
-- `plugin/string_plugin/`: Plugin with string-related commands (length, upper)
-- `plugin/duplicate_plugin/`: Plugin that deliberately has a duplicate command name to test conflict handling
-- `plugin/stress_plugin/`: Plugin with 50 commands for stress testing
-- `plugin/c_only/`: A pure C plugin (no C++) to verify cross-platform C plugin support
-- `plugin/edge_cases/`: Edge case plugins for testing:
+- `tests/host/libbu_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
+- `tests/host/exec.cpp`: test runner executable that optionally loads a plugin from the command line, reports registry size, and runs the "example" command.
+
+### Plugins (tests/plugin/)
+
+- `tests/plugin/example/`: A trivial plugin implementing one command named "example"
+- `tests/plugin/math_plugin/`: Plugin with multiple math commands (add, multiply, square)
+- `tests/plugin/string_plugin/`: Plugin with string-related commands (length, upper)
+- `tests/plugin/duplicate_plugin/`: Plugin that deliberately has a duplicate command name to test conflict handling
+- `tests/plugin/stress_plugin/`: Plugin with 50 commands for stress testing
+- `tests/plugin/large_plugin/`: Plugin with 500 commands for scalability testing
+- `tests/plugin/c_only/`: A pure C plugin (no C++) to verify cross-platform C plugin support
+- `tests/plugin/edge_cases/`: Edge case plugins for testing:
   - `empty_plugin`: Plugin with no commands
   - `null_impl_plugin`: Plugin with null implementations in some commands
   - `special_names_plugin`: Plugin with special/long/unusual command names
 
 ### Test Framework
 
-All testing infrastructure is organized under the `tests/` directory:
+All testing infrastructure is consolidated under the `tests/` directory with a clean, minimal test set:
 
-- `tests/test_harness.cpp`: Comprehensive test harness that tests:
-  - Initial state verification
-  - Built-in command functionality
-  - Null API parameter handling
-  - Duplicate registration handling
-  - Invalid plugin path handling
-  - Loading single and multiple plugins
-  - Duplicate command name handling across plugins
-  - Empty manifests
-  - Null implementations
-  - Special command names (very long names, underscores, numbers, mixed case)
-  - Stress testing with 50 commands
-  - C-only plugins (pure C without C++)
-- `tests/test_robustness.cpp`: Thread-safety and robustness testing
-- `tests/test_builds.sh`: Script to test various build configurations:
-  - Release and Debug builds
-  - Strict warning configurations
-  - RelWithDebInfo and MinSizeRel
-  - AddressSanitizer builds
-- `tests/alt_signature/`: Alternative function signature testing
-- `tests/plugins/`: Test-specific plugins for ABI validation:
-  - `test_bad_abi`: Plugin with wrong ABI version
-  - `test_bad_struct_size`: Plugin with wrong struct size
-  - `test_no_manifest`: Plugin missing manifest symbol
-- `tests/multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
-  - **Three independent libraries**: `libtestplugins1`, `libtestplugins2`, `libtestplugins3` - each with its own plugin system
-  - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`testplugins1`, `testplugins2`, `testplugins3`)
-  - **Independent plugin ecosystems**: Each library has 2 plugins with multiple commands
-  - **Library isolation testing**: Verifies no cross-library command interference
-  - **Proper shutdown ordering**: Tests LIFO (Last In, First Out) unload ordering
-  - **Macro define testing**: Validates `BU_PLUGIN_NAME` macro correctly namespaces symbols
-  
-  This test represents the full stress scenario encountered in real applications where multiple independent libraries with their own plugins interact in the same executable.
+**Core Test Executables (4 tests):**
+
+1. **`tests/test_harness.cpp`** - Comprehensive plugin system testing
+   - **Plugin Loading**: Single plugins, multiple plugins, all plugins simultaneously
+   - **Command Testing**: Registration, execution, lookup, enumeration (foreach)
+   - **Edge Cases**: Empty manifests, null implementations, special/long command names
+   - **Duplicate Handling**: Duplicate commands across plugins, duplicate registration attempts
+   - **API Validation**: Null parameters, invalid paths, error handling
+   - **Built-in Commands**: Help, version, status commands
+   - **Stress Testing**: 50 commands (stress plugin), 500 commands (large plugin)
+   - **C/C++ Interop**: Pure C plugins without C++
+   - **Collision Protection**: All plugins loaded simultaneously without symbol conflicts
+
+2. **`tests/test_robustness.cpp`** - Robustness and ABI validation
+   - **Thread Safety**: Concurrent command registration and foreach enumeration
+   - **ABI Validation**: Correct/incorrect version, struct size mismatches
+   - **Error Handling**: Path policy, missing manifest symbols, error logging
+   - **Exception Safety**: Exception handling in command execution
+   - **Manifest Validation**: Duplicate detection, null implementation filtering
+
+3. **`tests/alt_signature/`** - Alternative function signatures
+   - Tests support for different function signatures beyond basic `int (*)(void)`
+
+4. **`tests/multilib_stress/`** - Multi-library plugin ecosystems
+   - **Three independent libraries**: Each with its own plugin system and namespace
+   - **Namespace isolation**: No cross-library command interference
+   - **Proper shutdown ordering**: LIFO (Last In, First Out) unload ordering
+   - **Real-world scenario**: Multiple libraries with plugins in the same application
+
+**Build Configuration Tests:**
+- `tests/test_builds.sh`: Tests various build configurations (Release, Debug, RelWithDebInfo, MinSizeRel, AddressSanitizer)
+
+**Test Plugins:**
+- `tests/plugin/`: Example plugins for functional testing (example, math, string, c_only, stress, large, duplicate, edge_cases)
+- `tests/plugins/`: Specialized plugins for ABI validation (test_bad_abi, test_bad_struct_size, test_no_manifest)
+
+**Complete Coverage:**
+This minimal test set eliminates duplication while maintaining complete coverage of all plugin system functionality, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
 
 ## How to build & run
 
@@ -105,17 +116,17 @@ cmake --build .
 
 On Linux:
 ```bash
-./run_bu_plugin ./plugin/example/libbu-example-plugin.so
+./run_bu_plugin ./tests/plugin/example/libbu-example-plugin.so
 ```
 
 On macOS:
 ```bash
-./run_bu_plugin ./plugin/example/libbu-example-plugin.dylib
+./run_bu_plugin ./tests/plugin/example/libbu-example-plugin.dylib
 ```
 
 On Windows:
 ```cmd
-run_bu_plugin.exe plugin\example\bu-example-plugin.dll
+run_bu_plugin.exe tests\plugin\example\bu-example-plugin.dll
 ```
 
 ### Run the comprehensive test harness
@@ -152,9 +163,35 @@ Tests failed: 0
 
 ### Run all tests via CTest
 
+The test suite provides comprehensive coverage with a clean, minimal set of tests:
+
 ```bash
 ctest --output-on-failure
 ```
+
+**Test Coverage (4 tests):**
+- **`plugin_tests`**: Comprehensive test harness covering all plugins in `tests/plugin/` directory
+  - Tests all plugins: example, math, string, c_only, stress (50 cmds), large (500 cmds), duplicate, edge_cases (empty, null_impl, special_names)
+  - Validates plugin loading, command registration, execution, and edge cases
+  - Tests API functionality: exists, get, register, count, foreach
+  - Tests error handling: invalid paths, null parameters, duplicate registration
+  - Tests built-in commands and command enumeration
+  
+- **`robustness_tests`**: Thread-safety, robustness, and ABI validation testing
+  - Thread-safe concurrent command registration and enumeration
+  - ABI version validation (correct/incorrect versions, struct size)
+  - Error logging and path policy validation
+  - Exception handling in command execution
+  - Missing manifest symbol detection
+  
+- **`test_alt_signature`**: Alternative function signature testing
+  - Validates support for different function signatures beyond the basic `int (*)(void)`
+  
+- **`multilib_stress_test`**: Multi-library plugin ecosystem testing
+  - Tests multiple independent libraries with separate plugin systems
+  - Validates namespace isolation and proper shutdown ordering
+
+This minimal test set eliminates duplication while maintaining complete coverage of all plugin system functionality.
 
 ### Run all build configuration tests
 
@@ -166,7 +203,7 @@ ctest --output-on-failure
 
 ```
 Initial registered count: 3
-Registered 1 command(s) from ./plugin/example/libbu-example-plugin.so
+Registered 1 command(s) from ./tests/plugin/example/libbu-example-plugin.so
 Final registered count: 4
 Running 'example' command...
 Hello from the example plugin!

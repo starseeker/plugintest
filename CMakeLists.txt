@@ -87,32 +87,6 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 # Enable testing
 enable_testing()
 
-# Host library (shared) with built-in implementation
-add_library(bu_plugin_host SHARED
-    host/libbu_init.cpp
-)
-target_compile_definitions(bu_plugin_host PRIVATE BU_PLUGIN_IMPLEMENTATION BU_PLUGIN_BUILDING_DLL)
-if(WIN32)
-    target_link_libraries(bu_plugin_host PRIVATE)
-else()
-    target_link_libraries(bu_plugin_host PRIVATE dl)
-endif()
-
-# Executable that loads plugins and runs commands
-add_executable(run_bu_plugin
-    host/exec.cpp
-)
-target_link_libraries(run_bu_plugin PRIVATE bu_plugin_host)
-
-# Plugin subdirectories
-add_subdirectory(plugin/example)
-add_subdirectory(plugin/math_plugin)
-add_subdirectory(plugin/string_plugin)
-add_subdirectory(plugin/duplicate_plugin)
-add_subdirectory(plugin/stress_plugin)
-add_subdirectory(plugin/large_plugin)
-add_subdirectory(plugin/edge_cases)
-add_subdirectory(plugin/c_only)
-
-# Tests (includes all testing infrastructure and test-specific plugins)
+# Tests (includes all testing infrastructure, host components, and all plugins)
+# All test-related code has been consolidated under the tests/ directory
 add_subdirectory(tests)
