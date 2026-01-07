@@ -32,7 +32,7 @@ static int cmd_sum(int argc, const char** argv) {
     int sum = 0;
     printf("cmd_sum calculating sum of %d numbers\n", argc);
     for (int i = 0; i < argc; i++) {
-        /* Simple atoi for testing */
+        /* Simple atoi for testing - only handles positive integers, ignores non-numeric chars */
         int val = 0;
         for (const char* p = argv[i]; *p; p++) {
             if (*p >= '0' && *p <= '9') {

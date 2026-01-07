@@ -15,7 +15,6 @@
  */
 
 #include <cstdio>
-#include <cstring>
 #include <string>
 
 /* Define custom command signature before including the plugin header */

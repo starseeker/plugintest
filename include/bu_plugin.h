@@ -474,6 +474,10 @@ extern "C" {
 #define BU_PLUGIN_DEFAULT_SIGNATURE
 #endif
 
+    /* Clean up helper macros to avoid namespace pollution */
+#undef BU_PLUGIN_CMD_RET_IS_DEFAULT
+#undef BU_PLUGIN_CMD_ARGS_IS_DEFAULT
+
     /**
      * bu_plugin_cmd_impl - Function pointer type for a plugin command implementation.
      * This is a default implementation; the host can define its own typedef
