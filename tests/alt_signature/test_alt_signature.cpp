@@ -260,12 +260,12 @@ int main(void) {
     size_t final_count = bu_plugin_cmd_count();
     printf("Final command count: %zu\n", final_count);
     
-    /* Callback to count commands */
+    /* Callback data structure and function for counting commands */
     struct CountData {
         size_t count;
-    } count_data = {0};
+    };
     
-    auto count_callback = [](const char *name, bu_plugin_cmd_impl impl, void *user_data) -> int {
+    static auto count_callback_impl = [](const char *name, bu_plugin_cmd_impl impl, void *user_data) -> int {
         (void)impl;
         CountData *data = static_cast<CountData*>(user_data);
         data->count++;
@@ -276,7 +276,8 @@ int main(void) {
         return 0;  /* continue iteration */
     };
     
-    bu_plugin_cmd_foreach(count_callback, &count_data);
+    CountData count_data = {0};
+    bu_plugin_cmd_foreach(count_callback_impl, &count_data);
     
     if (count_data.count != final_count) {
         printf("FAIL: foreach counted %zu commands but cmd_count returned %zu\n", 

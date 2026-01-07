@@ -474,7 +474,8 @@ extern "C" {
 #define BU_PLUGIN_DEFAULT_SIGNATURE
 #endif
 
-    /* Clean up helper macros to avoid namespace pollution */
+    /* Clean up helper macros immediately to avoid namespace pollution.
+       BU_PLUGIN_DEFAULT_SIGNATURE is all we need going forward. */
 #undef BU_PLUGIN_CMD_RET_IS_DEFAULT
 #undef BU_PLUGIN_CMD_ARGS_IS_DEFAULT
 
