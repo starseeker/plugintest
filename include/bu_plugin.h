@@ -17,30 +17,276 @@
  * License along with this file; see the file named COPYING for more
  * information.
  */
-/** @file bu_plugin_core.h
+/** @file bu_plugin.h
  *
- * Minimal BU plugin core header for testing.
+ * @brief Cross-platform plugin system with command registry and dynamic loading
  *
- * This header provides:
- *   - Required BU_PLUGIN_* macros for cross-platform symbol export/import
- *   - Core types: bu_plugin_cmd_impl (function pointer), bu_plugin_cmd (command descriptor)
- *   - Registry APIs: register, exists, get, count, init, run
- *   - Logger callback API for centralized logging
- *   - Path-allow policy callback for security
- *   - ABI safety via abi_version and struct_size in manifest
- *   - REGISTER_BU_PLUGIN_COMMAND macro for C++ built-in command registration
- *   - Built-in registry implementation (C++ only) guarded by BU_PLUGIN_IMPLEMENTATION
- *   - Dynamic plugin manifest helpers: bu_plugin_manifest, BU_PLUGIN_DECLARE_MANIFEST
+ * This header provides a complete plugin infrastructure for applications that need
+ * to support both built-in commands and dynamically loadable plugins. It handles
+ * cross-platform symbol visibility, thread-safe command registration, ABI safety,
+ * and lifecycle management.
  *
- * The BU plugin implementation uses bu_plugin_cmd_impl for the function
- * pointer type.  By default it's int (*)(void) - if a different signature were
- * needed, define BU_PLUGIN_CMD_RET and/or BU_PLUGIN_CMD_ARGS before including
- * this header.  for example, to define an int (*)(int argc, char **argv)
- * signature:
+ * # Overview
  *
+ * The BU plugin system provides:
+ *   - Thread-safe command registry with O(1) lookup performance
+ *   - Cross-platform dynamic library loading (Windows DLL, POSIX .so/.dylib)
+ *   - ABI version checking to prevent incompatible plugin loads
+ *   - Customizable command function signatures via preprocessor macros
+ *   - Built-in command support for C++ applications
+ *   - Security features: path validation callbacks and exception handling
+ *   - Centralized logging with buffering support for startup scenarios
+ *   - Multi-library support with namespace isolation
+ *
+ * # Basic Usage Scenarios
+ *
+ * ## Scenario 1: Creating a Host Application
+ *
+ * A host application uses bu_plugin.h to create a plugin-enabled executable:
+ *
+ * @code
+ * // host_application.cpp
+ * #define BU_PLUGIN_IMPLEMENTATION  // Enable implementation in this compilation unit
+ * #include "bu_plugin.h"
+ *
+ * int main(int argc, char** argv) {
+ *     // Initialize the plugin system
+ *     bu_plugin_init();
+ *
+ *     // Load a plugin from disk
+ *     int loaded = bu_plugin_load("./plugins/myplugin.so");
+ *     if (loaded < 0) {
+ *         fprintf(stderr, "Failed to load plugin\n");
+ *         return 1;
+ *     }
+ *     printf("Loaded %d command(s) from plugin\n", loaded);
+ *
+ *     // Execute a command from the plugin
+ *     int result = 0;
+ *     int status = bu_plugin_cmd_run("mycommand", &result);
+ *     if (status == 0) {
+ *         printf("Command returned: %d\n", result);
+ *     }
+ *
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * ## Scenario 2: Creating a Dynamic Plugin
+ *
+ * A plugin exports commands that can be loaded by the host:
+ *
+ * @code
+ * // myplugin.cpp
+ * #include "bu_plugin.h"
+ *
+ * // Implement your command functions
+ * static int hello_cmd(void) {
+ *     printf("Hello from plugin!\n");
+ *     return 42;
+ * }
+ *
+ * static int goodbye_cmd(void) {
+ *     printf("Goodbye from plugin!\n");
+ *     return 0;
+ * }
+ *
+ * // Define the commands array
+ * static bu_plugin_cmd s_commands[] = {
+ *     {"hello", hello_cmd},
+ *     {"goodbye", goodbye_cmd}
+ * };
+ *
+ * // Create the manifest
+ * static bu_plugin_manifest s_manifest = {
+ *     "myplugin",                           // plugin_name
+ *     1,                                    // version
+ *     2,                                    // cmd_count
+ *     s_commands,                           // commands array
+ *     BU_PLUGIN_ABI_VERSION,                // abi_version
+ *     sizeof(bu_plugin_manifest)            // struct_size
+ * };
+ *
+ * // Export the manifest (creates the bu_plugin_info symbol)
+ * BU_PLUGIN_DECLARE_MANIFEST(s_manifest)
+ * @endcode
+ *
+ * ## Scenario 3: Registering Built-in Commands (C++)
+ *
+ * C++ applications can register commands at static initialization time:
+ *
+ * @code
+ * // builtin_commands.cpp
+ * #include "bu_plugin.h"
+ *
+ * static int version_cmd(void) {
+ *     printf("Version 1.0.0\n");
+ *     return 0;
+ * }
+ *
+ * static int help_cmd(void) {
+ *     printf("Available commands: version, help\n");
+ *     return 0;
+ * }
+ *
+ * // Register commands automatically at startup
+ * REGISTER_BU_PLUGIN_COMMAND("version", version_cmd)
+ * REGISTER_BU_PLUGIN_COMMAND("help", help_cmd)
+ * @endcode
+ *
+ * ## Scenario 4: Custom Command Signatures
+ *
+ * Applications can customize the command function signature:
+ *
+ * @code
+ * // Define custom signature BEFORE including bu_plugin.h
  * #define BU_PLUGIN_CMD_RET int
  * #define BU_PLUGIN_CMD_ARGS int argc, char** argv
- * #include "bu/plugin.h"
+ * #include "bu_plugin.h"
+ *
+ * // Now commands use: int (*)(int argc, char** argv)
+ * static int my_command(int argc, char** argv) {
+ *     printf("Received %d arguments\n", argc);
+ *     for (int i = 0; i < argc; i++) {
+ *         printf("  arg[%d]: %s\n", i, argv[i]);
+ *     }
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * ## Scenario 5: Multi-Library Plugin Systems
+ *
+ * Multiple libraries can maintain separate plugin ecosystems using namespacing:
+ *
+ * @code
+ * // Library 1: mylib1
+ * // mylib1_plugin.cpp
+ * #define BU_PLUGIN_NAME mylib1  // Namespace plugins as "mylib1"
+ * #include "bu_plugin.h"
+ *
+ * static int lib1_cmd(void) { return 1; }
+ * static bu_plugin_cmd s_lib1_cmds[] = {{"lib1_cmd", lib1_cmd}};
+ * static bu_plugin_manifest s_lib1_manifest = {
+ *     "mylib1_plugin", 1, 1, s_lib1_cmds,
+ *     BU_PLUGIN_ABI_VERSION, sizeof(bu_plugin_manifest)
+ * };
+ * BU_PLUGIN_DECLARE_MANIFEST(s_lib1_manifest)
+ * // Exports: mylib1_plugin_info()
+ *
+ * // Library 2: mylib2
+ * // mylib2_plugin.cpp
+ * #define BU_PLUGIN_NAME mylib2  // Namespace plugins as "mylib2"
+ * #include "bu_plugin.h"
+ *
+ * static int lib2_cmd(void) { return 2; }
+ * static bu_plugin_cmd s_lib2_cmds[] = {{"lib2_cmd", lib2_cmd}};
+ * static bu_plugin_manifest s_lib2_manifest = {
+ *     "mylib2_plugin", 1, 1, s_lib2_cmds,
+ *     BU_PLUGIN_ABI_VERSION, sizeof(bu_plugin_manifest)
+ * };
+ * BU_PLUGIN_DECLARE_MANIFEST(s_lib2_manifest)
+ * // Exports: mylib2_plugin_info()
+ * @endcode
+ *
+ * ## Scenario 6: Iterating Over Registered Commands
+ *
+ * List all available commands (useful for help systems):
+ *
+ * @code
+ * // Callback to print each command
+ * static int print_cmd(const char *name, bu_plugin_cmd_impl impl, void *data) {
+ *     (void)impl;  // unused
+ *     (void)data;  // unused
+ *     printf("  - %s\n", name);
+ *     return 0;  // continue iteration
+ * }
+ *
+ * int main(void) {
+ *     bu_plugin_init();
+ *     bu_plugin_load("./plugins/example.so");
+ *
+ *     printf("Available commands:\n");
+ *     bu_plugin_cmd_foreach(print_cmd, NULL);
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * ## Scenario 7: Security - Path Validation
+ *
+ * Control which plugin paths can be loaded:
+ *
+ * @code
+ * // Path validation callback
+ * static int path_validator(const char *path) {
+ *     // Only allow plugins from trusted directory
+ *     const char *trusted_dir = "/opt/myapp/plugins/";
+ *     return (strncmp(path, trusted_dir, strlen(trusted_dir)) == 0) ? 1 : 0;
+ * }
+ *
+ * int main(void) {
+ *     bu_plugin_init();
+ *     bu_plugin_set_path_allow(path_validator);
+ *
+ *     // This will succeed
+ *     bu_plugin_load("/opt/myapp/plugins/safe.so");
+ *
+ *     // This will be rejected
+ *     bu_plugin_load("/tmp/untrusted.so");  // Denied by policy
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * ## Scenario 8: Logging Integration
+ *
+ * Integrate plugin system logs with your application's logging:
+ *
+ * @code
+ * static void my_logger(int level, const char *msg) {
+ *     const char *level_str = "INFO";
+ *     if (level == BU_LOG_WARN) level_str = "WARN";
+ *     if (level == BU_LOG_ERR) level_str = "ERROR";
+ *     fprintf(stderr, "[%s] %s\n", level_str, msg);
+ * }
+ *
+ * int main(void) {
+ *     // Set logger before initialization to capture startup logs
+ *     bu_plugin_set_logger(my_logger);
+ *     bu_plugin_init();
+ *
+ *     // Or flush buffered startup logs later
+ *     bu_plugin_flush_logs(my_logger);
+ *
+ *     bu_plugin_load("./plugin.so");  // Logs will use my_logger
+ *     return 0;
+ * }
+ * @endcode
+ *
+ * # Build Configuration
+ *
+ * Host library (compiles the implementation):
+ * @code
+ * // CMakeLists.txt
+ * add_library(myhost SHARED host.cpp)
+ * target_compile_definitions(myhost PRIVATE 
+ *     BU_PLUGIN_IMPLEMENTATION 
+ *     BU_PLUGIN_BUILDING_DLL)
+ * @endcode
+ *
+ * Plugin library (uses the API):
+ * @code
+ * // CMakeLists.txt
+ * add_library(myplugin MODULE plugin.cpp)
+ * target_link_libraries(myplugin PRIVATE myhost)
+ * @endcode
+ *
+ * # Advanced Features
+ *
+ * - **Thread Safety**: All registry operations are protected by mutex
+ * - **ABI Safety**: Version and struct size validation prevent incompatible loads
+ * - **Exception Handling**: C++ exceptions in commands are caught and logged
+ * - **Duplicate Detection**: First-wins policy with warnings for duplicates
+ * - **Name Normalization**: Leading/trailing whitespace automatically trimmed
+ * - **Lifecycle Management**: Plugins kept loaded for process lifetime
  */
 
 #ifndef BU_PLUGIN_H

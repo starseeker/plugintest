@@ -114,13 +114,5 @@ add_subdirectory(plugin/large_plugin)
 add_subdirectory(plugin/edge_cases)
 add_subdirectory(plugin/c_only)
 
-# Test-only plugins for ABI validation
-add_subdirectory(plugin/test_bad_abi)
-add_subdirectory(plugin/test_bad_struct_size)
-add_subdirectory(plugin/test_no_manifest)
-
-# Tests
+# Tests (includes all testing infrastructure and test-specific plugins)
 add_subdirectory(tests)
-
-# Multi-library stress test (tests multiple independent libraries with separate plugin ecosystems)
-add_subdirectory(multilib_stress)

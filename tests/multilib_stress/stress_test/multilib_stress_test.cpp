@@ -87,7 +87,7 @@ static int tests_failed = 0;
 
 /* Build plugin path based on OS */
 static std::string get_plugin_path(const char* lib_name, const char* plugin_name) {
-    std::string path = "./multilib_stress/plugins/";
+    std::string path = "./tests/multilib_stress/plugins/";
     path += lib_name;
     path += "/";
     
@@ -107,7 +107,7 @@ static std::string get_plugin_path(const char* lib_name, const char* plugin_name
 
 /* Build library path based on OS */
 static std::string get_library_path(const char* lib_name) {
-    std::string path = "./multilib_stress/lib";
+    std::string path = "./tests/multilib_stress/lib";
     path += lib_name;
     path += "/";
     

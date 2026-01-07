@@ -35,3 +35,11 @@ add_test(NAME robustness_tests
 
 # Alternative signature test
 add_subdirectory(alt_signature)
+
+# Test-only plugins for ABI validation
+add_subdirectory(plugins/test_bad_abi)
+add_subdirectory(plugins/test_bad_struct_size)
+add_subdirectory(plugins/test_no_manifest)
+
+# Multi-library stress test (tests multiple independent libraries with separate plugin ecosystems)
+add_subdirectory(multilib_stress)
