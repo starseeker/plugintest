@@ -22,8 +22,7 @@
 #define BU_PLUGIN_CMD_RET int
 #define BU_PLUGIN_CMD_ARGS int argc, const char** argv
 
-/* Define the command implementation type */
-typedef int (*bu_plugin_cmd_impl)(int argc, const char** argv);
+#include "bu_plugin.h"
 
 /* Minimal implementation of the plugin registry for this test */
 static std::unordered_map<std::string, bu_plugin_cmd_impl> registry;

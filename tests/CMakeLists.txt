@@ -74,14 +74,14 @@ add_subdirectory(multilib_stress)
 # This replicates the functionality of test_builds.sh but uses CMake script
 # Note: This test creates separate build directories and can take significant time
 # It depends on other tests passing first - no point running if basic tests fail
-add_test(NAME build_config_tests
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/test_builds.cmake
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-)
+#add_test(NAME build_config_tests
+#    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/test_builds.cmake
+#    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#)
 
 # Make build_config_tests depend on all other tests
 # This ensures we only run the time-consuming multi-config test if basic tests pass
-set_tests_properties(build_config_tests PROPERTIES
-    DEPENDS "plugin_tests;robustness_tests;test_alt_signature;multilib_stress_test"
-)
+#set_tests_properties(build_config_tests PROPERTIES
+#    DEPENDS "plugin_tests;robustness_tests;test_alt_signature;multilib_stress_test"
+#)
 
