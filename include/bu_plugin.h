@@ -411,11 +411,18 @@ extern "C" {
     /* Default return type is int */
 #ifndef BU_PLUGIN_CMD_RET
 #define BU_PLUGIN_CMD_RET int
+#define BU_PLUGIN_CMD_RET_IS_DEFAULT
 #endif
 
     /* Default arguments is void */
 #ifndef BU_PLUGIN_CMD_ARGS
 #define BU_PLUGIN_CMD_ARGS void
+#define BU_PLUGIN_CMD_ARGS_IS_DEFAULT
+#endif
+
+    /* Detect if we're using the default signature */
+#if defined(BU_PLUGIN_CMD_RET_IS_DEFAULT) && defined(BU_PLUGIN_CMD_ARGS_IS_DEFAULT)
+#define BU_PLUGIN_DEFAULT_SIGNATURE
 #endif
 
     /**
@@ -539,6 +546,7 @@ extern "C" {
      */
     BU_PLUGIN_API int bu_plugin_init(void);
 
+#ifdef BU_PLUGIN_DEFAULT_SIGNATURE
     /**
      * bu_plugin_cmd_run - Safely run a registered command by name.
      * @param name  The command name to run.
@@ -547,8 +555,14 @@ extern "C" {
      *
      * On C++ builds, this function wraps the command execution in try/catch
      * to safely handle exceptions. The exception is logged but not re-thrown.
+     *
+     * Note: This function is only available when using the default command signature
+     * int (*)(void). For custom signatures, applications should provide their own
+     * wrapper functions tailored to the specific signature (see alt_sig_cmd_run in
+     * the alternative signature test for an example).
      */
     BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result);
+#endif /* BU_PLUGIN_DEFAULT_SIGNATURE */
 
     /**
      * bu_plugin_load - Load a dynamic plugin from a shared library path.
@@ -880,6 +894,7 @@ extern "C" {
 	return 0;
     }
 
+#ifdef BU_PLUGIN_DEFAULT_SIGNATURE
     BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
 	bu_plugin_cmd_impl fn = bu_plugin_cmd_get(name);
 	if (!fn) {
@@ -905,6 +920,7 @@ extern "C" {
 	}
 #endif
     }
+#endif /* BU_PLUGIN_DEFAULT_SIGNATURE */
 
     /**
      * bu_plugin_load - Load a dynamic plugin and register its commands.
