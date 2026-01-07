@@ -1,4 +1,32 @@
 # Tests CMakeLists.txt
+# This directory contains all test-related code including host components and plugins
+
+# Host library (shared) with built-in implementation
+add_library(bu_plugin_host SHARED
+    host/libbu_init.cpp
+)
+target_compile_definitions(bu_plugin_host PRIVATE BU_PLUGIN_IMPLEMENTATION BU_PLUGIN_BUILDING_DLL)
+if(WIN32)
+    target_link_libraries(bu_plugin_host PRIVATE)
+else()
+    target_link_libraries(bu_plugin_host PRIVATE dl)
+endif()
+
+# Executable that loads plugins and runs commands
+add_executable(run_bu_plugin
+    host/exec.cpp
+)
+target_link_libraries(run_bu_plugin PRIVATE bu_plugin_host)
+
+# Plugin subdirectories
+add_subdirectory(plugin/example)
+add_subdirectory(plugin/math_plugin)
+add_subdirectory(plugin/string_plugin)
+add_subdirectory(plugin/duplicate_plugin)
+add_subdirectory(plugin/stress_plugin)
+add_subdirectory(plugin/large_plugin)
+add_subdirectory(plugin/edge_cases)
+add_subdirectory(plugin/c_only)
 
 # Test harness executable
 add_executable(test_harness
@@ -44,7 +72,7 @@ add_subdirectory(plugins/test_no_manifest)
 # Multi-library stress test (tests multiple independent libraries with separate plugin ecosystems)
 add_subdirectory(multilib_stress)
 
-# Test the run_bu_plugin executable from host/ directory with various plugins
+# Test the run_bu_plugin executable with various plugins
 # This ensures complete coverage of the host executable functionality
 
 # Test run_bu_plugin with example plugin

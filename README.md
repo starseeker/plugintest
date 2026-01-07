@@ -13,6 +13,8 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 
 ## Structure
 
+All code is organized under the `tests/` directory for a clean, consolidated testing infrastructure:
+
 ### Core Components
 
 - `CMakeLists.txt`: top-level build configuration with support for various build types and compiler warning levels.
@@ -24,28 +26,32 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - Built-in registry implementation (C++ only) guarded by `BU_PLUGIN_IMPLEMENTATION`
   - Dynamic plugin manifest helpers (`bu_plugin_manifest`, `BU_PLUGIN_DECLARE_MANIFEST`, validation and registration helpers)
 - `include/bu_plugin.h`: wrapper including `bu_plugin_core.h` for the test host, with minimal function signature `int (*)(void)`
-- `host/libbu_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
-- `host/exec.cpp`: test runner executable that optionally loads a plugin from the command line, reports registry size, and runs the "example" command.
 
-### Plugins
+### Host Components (tests/host/)
 
-- `plugin/example/`: A trivial plugin implementing one command named "example"
-- `plugin/math_plugin/`: Plugin with multiple math commands (add, multiply, square)
-- `plugin/string_plugin/`: Plugin with string-related commands (length, upper)
-- `plugin/duplicate_plugin/`: Plugin that deliberately has a duplicate command name to test conflict handling
-- `plugin/stress_plugin/`: Plugin with 50 commands for stress testing
-- `plugin/c_only/`: A pure C plugin (no C++) to verify cross-platform C plugin support
-- `plugin/edge_cases/`: Edge case plugins for testing:
+- `tests/host/libbu_init.cpp`: instantiates the built-in implementation, registers built-in commands (help, version, status), and provides a minimal dynamic loader.
+- `tests/host/exec.cpp`: test runner executable that optionally loads a plugin from the command line, reports registry size, and runs the "example" command.
+
+### Plugins (tests/plugin/)
+
+- `tests/plugin/example/`: A trivial plugin implementing one command named "example"
+- `tests/plugin/math_plugin/`: Plugin with multiple math commands (add, multiply, square)
+- `tests/plugin/string_plugin/`: Plugin with string-related commands (length, upper)
+- `tests/plugin/duplicate_plugin/`: Plugin that deliberately has a duplicate command name to test conflict handling
+- `tests/plugin/stress_plugin/`: Plugin with 50 commands for stress testing
+- `tests/plugin/large_plugin/`: Plugin with 500 commands for scalability testing
+- `tests/plugin/c_only/`: A pure C plugin (no C++) to verify cross-platform C plugin support
+- `tests/plugin/edge_cases/`: Edge case plugins for testing:
   - `empty_plugin`: Plugin with no commands
   - `null_impl_plugin`: Plugin with null implementations in some commands
   - `special_names_plugin`: Plugin with special/long/unusual command names
 
 ### Test Framework
 
-All testing infrastructure is organized under the `tests/` directory and provides comprehensive coverage of both the `plugin/` and `host/` directory components:
+All testing infrastructure is consolidated under the `tests/` directory:
 
 **Core Test Executables:**
-- `tests/test_harness.cpp`: Comprehensive test harness that tests all plugins from `plugin/` directory:
+- `tests/test_harness.cpp`: Comprehensive test harness that tests all plugins from `tests/plugin/` directory:
   - Initial state verification
   - Built-in command functionality
   - Null API parameter handling
@@ -64,7 +70,7 @@ All testing infrastructure is organized under the `tests/` directory and provide
 - `tests/test_robustness.cpp`: Thread-safety and robustness testing
 
 **Host Executable Tests:**
-- CTest integration tests for `run_bu_plugin` (from `host/exec.cpp`) with all plugins:
+- CTest integration tests for `run_bu_plugin` (from `tests/host/exec.cpp`) with all plugins:
   - Example plugin test
   - Math plugin test
   - String plugin test
@@ -101,7 +107,7 @@ All testing infrastructure is organized under the `tests/` directory and provide
   This test represents the full stress scenario encountered in real applications where multiple independent libraries with their own plugins interact in the same executable.
 
 **Complete Coverage:**
-The test suite ensures that all components from both `plugin/` and `host/` directories are thoroughly tested, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
+The test suite ensures that all components are thoroughly tested within the consolidated `tests/` directory structure, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
 
 ## How to build & run
 
@@ -130,17 +136,17 @@ cmake --build .
 
 On Linux:
 ```bash
-./run_bu_plugin ./plugin/example/libbu-example-plugin.so
+./run_bu_plugin ./tests/plugin/example/libbu-example-plugin.so
 ```
 
 On macOS:
 ```bash
-./run_bu_plugin ./plugin/example/libbu-example-plugin.dylib
+./run_bu_plugin ./tests/plugin/example/libbu-example-plugin.dylib
 ```
 
 On Windows:
 ```cmd
-run_bu_plugin.exe plugin\example\bu-example-plugin.dll
+run_bu_plugin.exe tests\plugin\example\bu-example-plugin.dll
 ```
 
 ### Run the comprehensive test harness
@@ -184,7 +190,7 @@ ctest --output-on-failure
 ```
 
 **Test Coverage:**
-- **`plugin_tests`**: Comprehensive test harness covering all plugins in `plugin/` directory
+- **`plugin_tests`**: Comprehensive test harness covering all plugins in `tests/plugin/` directory
 - **`robustness_tests`**: Thread-safety and robustness testing
 - **`test_alt_signature`**: Alternative function signature testing
 - **`multilib_stress_test`**: Multi-library plugin ecosystem testing
@@ -213,7 +219,7 @@ Total: 15 comprehensive tests covering all aspects of the plugin system.
 
 ```
 Initial registered count: 3
-Registered 1 command(s) from ./plugin/example/libbu-example-plugin.so
+Registered 1 command(s) from ./tests/plugin/example/libbu-example-plugin.so
 Final registered count: 4
 Running 'example' command...
 Hello from the example plugin!
