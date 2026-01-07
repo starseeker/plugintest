@@ -29,16 +29,34 @@ extern "C" {
     int alt_sig_cmd_run(const char *name, int argc, const char** argv, int *result);
 }
 
-/* Helper function to construct plugin path */
-static std::string get_plugin_path(const char* plugin_name) {
-    std::string path = "./tests/alt_signature/plugins/";
-#if defined(_WIN32)
+/* Build configuration (for multi-config generators like Visual Studio) */
+static std::string g_build_config;
+
+/* Helper function to construct plugin path - handles multi-config builds */
+static std::string get_plugin_path(const char* base_dir, const char* plugin_name) {
+    std::string path = base_dir;
+    path += "/tests/alt_signature/";
+    
+#if defined(_WIN32) && defined(_MSC_VER)
+    /* For MSVC multi-config builds, add the configuration subdirectory */
+    if (!g_build_config.empty()) {
+        path += g_build_config;
+        path += "/";
+    }
+    /* MSVC doesn't use 'lib' prefix for MODULE libraries */
+    path += plugin_name;
+    path += ".dll";
+#elif defined(_WIN32)
+    /* For other Windows compilers (MinGW, etc.) */
+    path += "lib";
     path += plugin_name;
     path += ".dll";
 #elif defined(__APPLE__)
+    path += "lib";
     path += plugin_name;
     path += ".dylib";
 #else
+    path += "lib";
     path += plugin_name;
     path += ".so";
 #endif
@@ -46,13 +64,22 @@ static std::string get_plugin_path(const char* plugin_name) {
 }
 
 
-int main(void) {
+int main(int argc, char** argv) {
     printf("========================================\n");
     printf("  Alternative Signature Test\n");
     printf("========================================\n");
     printf("\nThis test validates full integration of the plugin system with\n");
     printf("custom command signatures beyond int (*)(void).\n");
     printf("\nTesting signature: int (*)(int argc, const char** argv)\n\n");
+    
+    /* Parse command line arguments for build directory and config */
+    const char* build_dir = ".";
+    if (argc > 1) {
+        build_dir = argv[1];
+    }
+    if (argc > 2) {
+        g_build_config = argv[2];
+    }
     
     /* Initialize the plugin system */
     int init_result = alt_sig_host_init();
@@ -102,7 +129,7 @@ int main(void) {
     
     /* Load args plugin */
     printf("\n=== Loading args plugin ===\n");
-    std::string args_plugin_path = get_plugin_path("alt-args-plugin");
+    std::string args_plugin_path = get_plugin_path(build_dir, "alt-args-plugin");
     printf("Loading: %s\n", args_plugin_path.c_str());
     int loaded1 = bu_plugin_load(args_plugin_path.c_str());
     if (loaded1 < 0) {
@@ -166,7 +193,7 @@ int main(void) {
     
     /* Load string operations plugin */
     printf("\n=== Loading string_ops plugin ===\n");
-    std::string string_ops_path = get_plugin_path("alt-string-ops-plugin");
+    std::string string_ops_path = get_plugin_path(build_dir, "alt-string-ops-plugin");
     printf("Loading: %s\n", string_ops_path.c_str());
     int loaded2 = bu_plugin_load(string_ops_path.c_str());
     if (loaded2 < 0) {
