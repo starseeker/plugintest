@@ -48,66 +48,46 @@ All code is organized under the `tests/` directory for a clean, consolidated tes
 
 ### Test Framework
 
-All testing infrastructure is consolidated under the `tests/` directory:
+All testing infrastructure is consolidated under the `tests/` directory with a clean, minimal test set:
 
-**Core Test Executables:**
-- `tests/test_harness.cpp`: Comprehensive test harness that tests all plugins from `tests/plugin/` directory:
-  - Initial state verification
-  - Built-in command functionality
-  - Null API parameter handling
-  - Duplicate registration handling
-  - Invalid plugin path handling
-  - Loading single and multiple plugins
-  - Duplicate command name handling across plugins
-  - Empty manifests
-  - Null implementations
-  - Special command names (very long names, underscores, numbers, mixed case)
-  - Stress testing with 50 commands
-  - Scalability testing with 500 commands
-  - C-only plugins (pure C without C++)
-  - Collision protection with all plugins loaded simultaneously
-  
-- `tests/test_robustness.cpp`: Thread-safety and robustness testing
+**Core Test Executables (4 tests):**
 
-**Host Executable Tests:**
-- CTest integration tests for `run_bu_plugin` (from `tests/host/exec.cpp`) with all plugins:
-  - Example plugin test
-  - Math plugin test
-  - String plugin test
-  - C-only plugin test
-  - Stress plugin test (50 commands)
-  - Large plugin test (500 commands)
-  - Duplicate plugin test
-  - Empty plugin test
-  - Null implementation test
-  - Special names plugin test
-  - No plugin test (baseline)
+1. **`tests/test_harness.cpp`** - Comprehensive plugin system testing
+   - **Plugin Loading**: Single plugins, multiple plugins, all plugins simultaneously
+   - **Command Testing**: Registration, execution, lookup, enumeration (foreach)
+   - **Edge Cases**: Empty manifests, null implementations, special/long command names
+   - **Duplicate Handling**: Duplicate commands across plugins, duplicate registration attempts
+   - **API Validation**: Null parameters, invalid paths, error handling
+   - **Built-in Commands**: Help, version, status commands
+   - **Stress Testing**: 50 commands (stress plugin), 500 commands (large plugin)
+   - **C/C++ Interop**: Pure C plugins without C++
+   - **Collision Protection**: All plugins loaded simultaneously without symbol conflicts
 
-**Build and Configuration Tests:**
-- `tests/test_builds.sh`: Script to test various build configurations:
-  - Release and Debug builds
-  - Strict warning configurations
-  - RelWithDebInfo and MinSizeRel
-  - AddressSanitizer builds
+2. **`tests/test_robustness.cpp`** - Robustness and ABI validation
+   - **Thread Safety**: Concurrent command registration and foreach enumeration
+   - **ABI Validation**: Correct/incorrect version, struct size mismatches
+   - **Error Handling**: Path policy, missing manifest symbols, error logging
+   - **Exception Safety**: Exception handling in command execution
+   - **Manifest Validation**: Duplicate detection, null implementation filtering
 
-**Specialized Tests:**
-- `tests/alt_signature/`: Alternative function signature testing
-- `tests/plugins/`: Test-specific plugins for ABI validation:
-  - `test_bad_abi`: Plugin with wrong ABI version
-  - `test_bad_struct_size`: Plugin with wrong struct size
-  - `test_no_manifest`: Plugin missing manifest symbol
-- `tests/multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
-  - **Three independent libraries**: `libtestplugins1`, `libtestplugins2`, `libtestplugins3` - each with its own plugin system
-  - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`testplugins1`, `testplugins2`, `testplugins3`)
-  - **Independent plugin ecosystems**: Each library has 2 plugins with multiple commands
-  - **Library isolation testing**: Verifies no cross-library command interference
-  - **Proper shutdown ordering**: Tests LIFO (Last In, First Out) unload ordering
-  - **Macro define testing**: Validates `BU_PLUGIN_NAME` macro correctly namespaces symbols
-  
-  This test represents the full stress scenario encountered in real applications where multiple independent libraries with their own plugins interact in the same executable.
+3. **`tests/alt_signature/`** - Alternative function signatures
+   - Tests support for different function signatures beyond basic `int (*)(void)`
+
+4. **`tests/multilib_stress/`** - Multi-library plugin ecosystems
+   - **Three independent libraries**: Each with its own plugin system and namespace
+   - **Namespace isolation**: No cross-library command interference
+   - **Proper shutdown ordering**: LIFO (Last In, First Out) unload ordering
+   - **Real-world scenario**: Multiple libraries with plugins in the same application
+
+**Build Configuration Tests:**
+- `tests/test_builds.sh`: Tests various build configurations (Release, Debug, RelWithDebInfo, MinSizeRel, AddressSanitizer)
+
+**Test Plugins:**
+- `tests/plugin/`: Example plugins for functional testing (example, math, string, c_only, stress, large, duplicate, edge_cases)
+- `tests/plugins/`: Specialized plugins for ABI validation (test_bad_abi, test_bad_struct_size, test_no_manifest)
 
 **Complete Coverage:**
-The test suite ensures that all components are thoroughly tested within the consolidated `tests/` directory structure, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
+This minimal test set eliminates duplication while maintaining complete coverage of all plugin system functionality, providing a clean, well-organized testing setup suitable for integration into BRL-CAD's testing infrastructure.
 
 ## How to build & run
 
@@ -183,31 +163,35 @@ Tests failed: 0
 
 ### Run all tests via CTest
 
-The test suite provides comprehensive coverage of all plugin and host components:
+The test suite provides comprehensive coverage with a clean, minimal set of tests:
 
 ```bash
 ctest --output-on-failure
 ```
 
-**Test Coverage:**
+**Test Coverage (4 tests):**
 - **`plugin_tests`**: Comprehensive test harness covering all plugins in `tests/plugin/` directory
-- **`robustness_tests`**: Thread-safety and robustness testing
+  - Tests all plugins: example, math, string, c_only, stress (50 cmds), large (500 cmds), duplicate, edge_cases (empty, null_impl, special_names)
+  - Validates plugin loading, command registration, execution, and edge cases
+  - Tests API functionality: exists, get, register, count, foreach
+  - Tests error handling: invalid paths, null parameters, duplicate registration
+  - Tests built-in commands and command enumeration
+  
+- **`robustness_tests`**: Thread-safety, robustness, and ABI validation testing
+  - Thread-safe concurrent command registration and enumeration
+  - ABI version validation (correct/incorrect versions, struct size)
+  - Error logging and path policy validation
+  - Exception handling in command execution
+  - Missing manifest symbol detection
+  
 - **`test_alt_signature`**: Alternative function signature testing
+  - Validates support for different function signatures beyond the basic `int (*)(void)`
+  
 - **`multilib_stress_test`**: Multi-library plugin ecosystem testing
-- **`run_bu_plugin_*`**: Tests for the host executable with all plugins:
-  - `run_bu_plugin_example`: Tests example plugin
-  - `run_bu_plugin_math`: Tests math plugin
-  - `run_bu_plugin_string`: Tests string plugin
-  - `run_bu_plugin_c_only`: Tests C-only plugin
-  - `run_bu_plugin_stress`: Tests stress plugin (50 commands)
-  - `run_bu_plugin_large`: Tests large plugin (500 commands)
-  - `run_bu_plugin_duplicate`: Tests duplicate command handling
-  - `run_bu_plugin_empty`: Tests empty plugin
-  - `run_bu_plugin_null_impl`: Tests null implementation handling
-  - `run_bu_plugin_special_names`: Tests special command names
-  - `run_bu_plugin_no_plugin`: Tests executable without plugin
+  - Tests multiple independent libraries with separate plugin systems
+  - Validates namespace isolation and proper shutdown ordering
 
-Total: 15 comprehensive tests covering all aspects of the plugin system.
+This minimal test set eliminates duplication while maintaining complete coverage of all plugin system functionality.
 
 ### Run all build configuration tests
 
