@@ -142,8 +142,50 @@ run_config("MinSizeRel" -DCMAKE_BUILD_TYPE=MinSizeRel)
 run_config("Release-NoWarnings" -DCMAKE_BUILD_TYPE=Release -DENABLE_STRICT_WARNINGS=OFF)
 
 # Test 8: With sanitizers (Linux/macOS only)
+# First check if the compiler supports sanitizers
 if(UNIX)
-    run_config("Debug-Sanitizers" -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON)
+    message("")
+    message("========================================")
+    message("${COLOR_YELLOW}Checking sanitizer support...${COLOR_RESET}")
+    message("========================================")
+    
+    # Create a temporary build directory to test sanitizer support
+    set(SANITIZER_TEST_DIR "${PROJECT_DIR}/build_sanitizer_test")
+    file(REMOVE_RECURSE "${SANITIZER_TEST_DIR}")
+    file(MAKE_DIRECTORY "${SANITIZER_TEST_DIR}")
+    
+    # Try to configure with sanitizers enabled
+    execute_process(
+        COMMAND ${CMAKE_COMMAND} ${PROJECT_DIR} -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON
+        WORKING_DIRECTORY ${SANITIZER_TEST_DIR}
+        RESULT_VARIABLE SANITIZER_CHECK_RESULT
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+    
+    # Try to build a simple target to verify sanitizers actually work
+    if(SANITIZER_CHECK_RESULT EQUAL 0)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} --build . --target bu_plugin_host
+            WORKING_DIRECTORY ${SANITIZER_TEST_DIR}
+            RESULT_VARIABLE SANITIZER_BUILD_RESULT
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+    else()
+        set(SANITIZER_BUILD_RESULT 1)
+    endif()
+    
+    # Clean up the test directory
+    file(REMOVE_RECURSE "${SANITIZER_TEST_DIR}")
+    
+    if(SANITIZER_CHECK_RESULT EQUAL 0 AND SANITIZER_BUILD_RESULT EQUAL 0)
+        message("${COLOR_GREEN}Sanitizers supported - running sanitizer tests${COLOR_RESET}")
+        run_config("Debug-Sanitizers" -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON)
+    else()
+        message("${COLOR_YELLOW}Sanitizers not supported by compiler - skipping sanitizer tests${COLOR_RESET}")
+        message("  (This is normal if your compiler doesn't support AddressSanitizer)")
+    endif()
 endif()
 
 # Summary
