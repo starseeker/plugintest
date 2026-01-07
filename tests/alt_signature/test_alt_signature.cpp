@@ -33,10 +33,7 @@ extern "C" {
 /* Helper function to construct plugin path */
 static std::string get_plugin_path(const char* plugin_name) {
     std::string path = "./tests/alt_signature/plugins/";
-#if defined(_WIN32) && defined(_MSC_VER)
-    path += plugin_name;
-    path += ".dll";
-#elif defined(_WIN32)
+#if defined(_WIN32)
     path += plugin_name;
     path += ".dll";
 #elif defined(__APPLE__)

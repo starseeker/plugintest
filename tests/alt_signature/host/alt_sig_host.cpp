@@ -82,8 +82,7 @@ static int builtin_echo(int argc, const char** argv) {
 REGISTER_BU_PLUGIN_COMMAND("echo", builtin_echo);
 
 /* Built-in count command for testing */
-static int builtin_count(int argc, const char** argv) {
-    (void)argv; /* unused */
+static int builtin_count(int argc, const char** /*argv*/) {
     printf("count: received %d arguments\n", argc);
     return argc;
 }
