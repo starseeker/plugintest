@@ -42,6 +42,8 @@ This repository provides a comprehensive testing framework for the BU plugin cor
 
 ### Test Framework
 
+All testing infrastructure is organized under the `tests/` directory:
+
 - `tests/test_harness.cpp`: Comprehensive test harness that tests:
   - Initial state verification
   - Built-in command functionality
@@ -55,15 +57,18 @@ This repository provides a comprehensive testing framework for the BU plugin cor
   - Special command names (very long names, underscores, numbers, mixed case)
   - Stress testing with 50 commands
   - C-only plugins (pure C without C++)
+- `tests/test_robustness.cpp`: Thread-safety and robustness testing
 - `tests/test_builds.sh`: Script to test various build configurations:
   - Release and Debug builds
   - Strict warning configurations
   - RelWithDebInfo and MinSizeRel
   - AddressSanitizer builds
-
-### Multi-Library Stress Test
-
-- `multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
+- `tests/alt_signature/`: Alternative function signature testing
+- `tests/plugins/`: Test-specific plugins for ABI validation:
+  - `test_bad_abi`: Plugin with wrong ABI version
+  - `test_bad_struct_size`: Plugin with wrong struct size
+  - `test_no_manifest`: Plugin missing manifest symbol
+- `tests/multilib_stress/`: A comprehensive stress test that validates multiple independent libraries with separate plugin ecosystems:
   - **Three independent libraries**: `libtestplugins1`, `libtestplugins2`, `libtestplugins3` - each with its own plugin system
   - **Namespace isolation**: Each library uses `BU_PLUGIN_NAME` macro to namespace its plugins (`testplugins1`, `testplugins2`, `testplugins3`)
   - **Independent plugin ecosystems**: Each library has 2 plugins with multiple commands
@@ -124,7 +129,7 @@ run_bu_plugin.exe plugin\example\bu-example-plugin.dll
 This test validates multiple independent libraries with separate plugin ecosystems running in the same application:
 
 ```bash
-./multilib_stress/stress_test/multilib_stress_test
+./tests/multilib_stress/stress_test/multilib_stress_test
 ```
 
 Expected output:
@@ -143,6 +148,12 @@ Tests failed: 0
   libraries with separate plugin ecosystems in the same
   application, with proper initialization, execution, and
   shutdown ordering.
+```
+
+### Run all tests via CTest
+
+```bash
+ctest --output-on-failure
 ```
 
 ### Run all build configuration tests

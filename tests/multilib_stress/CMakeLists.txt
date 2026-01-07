@@ -23,3 +23,9 @@ add_subdirectory(plugins/testplugins3)
 
 # Build the stress test executable
 add_subdirectory(stress_test)
+
+# Add test target using CTest
+add_test(NAME multilib_stress_tests
+    COMMAND multilib_stress_test
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)

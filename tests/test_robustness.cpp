@@ -388,7 +388,7 @@ static bool test_abi_validation_bad_version(const char* plugin_dir) {
     clear_logs();
     
     /* Try to load plugin with wrong ABI version */
-    std::string path = get_plugin_path(plugin_dir, "plugin/test_bad_abi", "bu-bad-abi-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugins/test_bad_abi", "bu-bad-abi-plugin");
     printf("  Attempting to load plugin with incorrect ABI version: %s\n", path.c_str());
     
     int result = bu_plugin_load(path.c_str());
@@ -411,7 +411,7 @@ static bool test_abi_validation_bad_struct_size(const char* plugin_dir) {
     clear_logs();
     
     /* Try to load plugin with too-small struct_size */
-    std::string path = get_plugin_path(plugin_dir, "plugin/test_bad_struct_size", "bu-bad-struct-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugins/test_bad_struct_size", "bu-bad-struct-plugin");
     printf("  Attempting to load plugin with incorrect struct_size: %s\n", path.c_str());
     
     int result = bu_plugin_load(path.c_str());
@@ -434,7 +434,7 @@ static bool test_missing_plugin_info(const char* plugin_dir) {
     clear_logs();
     
     /* Try to load library without bu_plugin_info symbol */
-    std::string path = get_plugin_path(plugin_dir, "plugin/test_no_manifest", "bu-no-manifest-plugin");
+    std::string path = get_plugin_path(plugin_dir, "tests/plugins/test_no_manifest", "bu-no-manifest-plugin");
     printf("  Attempting to load library without bu_plugin_info: %s\n", path.c_str());
     
     int result = bu_plugin_load(path.c_str());
