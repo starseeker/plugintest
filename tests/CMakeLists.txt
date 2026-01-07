@@ -47,14 +47,6 @@ add_subdirectory(multilib_stress)
 # Test the run_bu_plugin executable from host/ directory with various plugins
 # This ensures complete coverage of the host executable functionality
 
-# Helper function to construct plugin path based on platform
-if(WIN32 AND MSVC)
-    # MSVC multi-config builds
-    set(PLUGIN_DIR "$<TARGET_FILE_DIR:bu_plugin_host>")
-else()
-    set(PLUGIN_DIR "${CMAKE_BINARY_DIR}")
-endif()
-
 # Test run_bu_plugin with example plugin
 add_test(NAME run_bu_plugin_example
     COMMAND run_bu_plugin $<TARGET_FILE:bu-example-plugin>
