@@ -10,15 +10,15 @@ if(NOT WIN32)
     target_link_libraries(alt_sig_host PRIVATE dl)
 endif()
 
-# Args plugin - built as MODULE for proper plugin behavior
-add_library(alt-args-plugin MODULE
+# Args plugin - built as SHARED (not MODULE) for cross-platform compatibility
+add_library(alt-args-plugin SHARED
     plugins/args_plugin.cpp
 )
 target_compile_definitions(alt-args-plugin PRIVATE BU_PLUGIN_BUILDING_DLL)
 target_include_directories(alt-args-plugin PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
-# String operations plugin - built as MODULE for proper plugin behavior
-add_library(alt-string-ops-plugin MODULE
+# String operations plugin - built as SHARED (not MODULE) for cross-platform compatibility
+add_library(alt-string-ops-plugin SHARED
     plugins/string_ops_plugin.cpp
 )
 target_compile_definitions(alt-string-ops-plugin PRIVATE BU_PLUGIN_BUILDING_DLL)
