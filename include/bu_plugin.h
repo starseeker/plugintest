@@ -38,6 +38,18 @@
  *   - Centralized logging with buffering support for startup scenarios
  *   - Multi-library support with namespace isolation
  *
+ * # Command Signature Flexibility
+ *
+ * By default, commands use the signature: int (*)(void)
+ *
+ * However, applications can define custom signatures by setting BU_PLUGIN_CMD_RET
+ * and BU_PLUGIN_CMD_ARGS macros before including this header. All core functionality
+ * (registration, lookup, loading, iteration) works with any signature. The only
+ * limitation is that bu_plugin_cmd_run() is only available for the default signature;
+ * applications using custom signatures should provide their own wrapper functions.
+ *
+ * See Scenario 4 and tests/alt_signature for complete examples.
+ *
  * # Basic Usage Scenarios
  *
  * ## Scenario 1: Creating a Host Application
@@ -136,22 +148,59 @@
  *
  * ## Scenario 4: Custom Command Signatures
  *
- * Applications can customize the command function signature:
+ * Applications can customize the command function signature by defining macros
+ * before including bu_plugin.h. Note that bu_plugin_cmd_run() is only available
+ * for the default signature; custom signatures require application-specific wrappers.
  *
  * @code
+ * // host_with_custom_sig.cpp
  * // Define custom signature BEFORE including bu_plugin.h
  * #define BU_PLUGIN_CMD_RET int
- * #define BU_PLUGIN_CMD_ARGS int argc, char** argv
+ * #define BU_PLUGIN_CMD_ARGS int argc, const char** argv
+ * #define BU_PLUGIN_IMPLEMENTATION
  * #include "bu_plugin.h"
  *
- * // Now commands use: int (*)(int argc, char** argv)
- * static int my_command(int argc, char** argv) {
+ * // Provide a custom wrapper function for the custom signature
+ * extern "C" int my_cmd_run(const char *name, int argc, const char** argv, int *result) {
+ *     bu_plugin_cmd_impl fn = bu_plugin_cmd_get(name);
+ *     if (!fn) return -1;
+ *     try {
+ *         int ret = fn(argc, argv);  // Call with custom args
+ *         if (result) *result = ret;
+ *         return 0;
+ *     } catch (...) {
+ *         return -2;
+ *     }
+ * }
+ *
+ * // Now commands use: int (*)(int argc, const char** argv)
+ * static int my_command(int argc, const char** argv) {
  *     printf("Received %d arguments\n", argc);
  *     for (int i = 0; i < argc; i++) {
  *         printf("  arg[%d]: %s\n", i, argv[i]);
  *     }
  *     return 0;
  * }
+ * REGISTER_BU_PLUGIN_COMMAND("mycommand", my_command);
+ *
+ * // In plugin code (with same custom signature):
+ * #define BU_PLUGIN_CMD_RET int
+ * #define BU_PLUGIN_CMD_ARGS int argc, const char** argv
+ * #define BU_PLUGIN_BUILDING_DLL
+ * #include "bu_plugin.h"
+ *
+ * static int plugin_cmd(int argc, const char** argv) {
+ *     // Implementation
+ *     return 0;
+ * }
+ * static bu_plugin_cmd s_commands[] = {{"plugin_cmd", plugin_cmd}};
+ * static bu_plugin_manifest s_manifest = {
+ *     "my-plugin", 1, 1, s_commands,
+ *     BU_PLUGIN_ABI_VERSION, sizeof(bu_plugin_manifest)
+ * };
+ * BU_PLUGIN_DECLARE_MANIFEST(s_manifest)
+ *
+ * // See tests/alt_signature for a complete working example
  * @endcode
  *
  * ## Scenario 5: Multi-Library Plugin Systems
@@ -411,12 +460,24 @@ extern "C" {
     /* Default return type is int */
 #ifndef BU_PLUGIN_CMD_RET
 #define BU_PLUGIN_CMD_RET int
+#define BU_PLUGIN_CMD_RET_IS_DEFAULT
 #endif
 
     /* Default arguments is void */
 #ifndef BU_PLUGIN_CMD_ARGS
 #define BU_PLUGIN_CMD_ARGS void
+#define BU_PLUGIN_CMD_ARGS_IS_DEFAULT
 #endif
+
+    /* Detect if we're using the default signature */
+#if defined(BU_PLUGIN_CMD_RET_IS_DEFAULT) && defined(BU_PLUGIN_CMD_ARGS_IS_DEFAULT)
+#define BU_PLUGIN_DEFAULT_SIGNATURE
+#endif
+
+    /* Clean up helper macros immediately to avoid namespace pollution.
+       BU_PLUGIN_DEFAULT_SIGNATURE is all we need going forward. */
+#undef BU_PLUGIN_CMD_RET_IS_DEFAULT
+#undef BU_PLUGIN_CMD_ARGS_IS_DEFAULT
 
     /**
      * bu_plugin_cmd_impl - Function pointer type for a plugin command implementation.
@@ -539,6 +600,7 @@ extern "C" {
      */
     BU_PLUGIN_API int bu_plugin_init(void);
 
+#ifdef BU_PLUGIN_DEFAULT_SIGNATURE
     /**
      * bu_plugin_cmd_run - Safely run a registered command by name.
      * @param name  The command name to run.
@@ -547,8 +609,14 @@ extern "C" {
      *
      * On C++ builds, this function wraps the command execution in try/catch
      * to safely handle exceptions. The exception is logged but not re-thrown.
+     *
+     * Note: This function is only available when using the default command signature
+     * int (*)(void). For custom signatures, applications should provide their own
+     * wrapper functions tailored to the specific signature (see alt_sig_cmd_run in
+     * the alternative signature test for an example).
      */
     BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result);
+#endif /* BU_PLUGIN_DEFAULT_SIGNATURE */
 
     /**
      * bu_plugin_load - Load a dynamic plugin from a shared library path.
@@ -880,6 +948,7 @@ extern "C" {
 	return 0;
     }
 
+#ifdef BU_PLUGIN_DEFAULT_SIGNATURE
     BU_PLUGIN_API int bu_plugin_cmd_run(const char *name, BU_PLUGIN_CMD_RET *result) {
 	bu_plugin_cmd_impl fn = bu_plugin_cmd_get(name);
 	if (!fn) {
@@ -905,6 +974,7 @@ extern "C" {
 	}
 #endif
     }
+#endif /* BU_PLUGIN_DEFAULT_SIGNATURE */
 
     /**
      * bu_plugin_load - Load a dynamic plugin and register its commands.
