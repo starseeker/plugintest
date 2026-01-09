@@ -690,7 +690,8 @@ struct CommandRegistrar {
 #ifndef BU_PLUGIN_NAME
 #define BU_PLUGIN_NAME bu
 #endif
-#define BU_PLUGIN_CAT2(a,b) a##b
+#define BU_PLUGIN_CAT2_IMPL(a,b) a##b
+#define BU_PLUGIN_CAT2(a,b) BU_PLUGIN_CAT2_IMPL(a,b)
 #define BU_PLUGIN_STR1(x) #x
 #define BU_PLUGIN_STR(x) BU_PLUGIN_STR1(x)
 #define BU_PLUGIN_MANIFEST_FN  BU_PLUGIN_CAT2(BU_PLUGIN_NAME, _plugin_info)
